@@ -13,7 +13,7 @@
     {"id": "R03", "batch": "B3", "test": "test_b3_diagnosis.py::DiagnosisAdapterTests.test_stage_order_and_fail_closed_apply"},
     {"id": "R04", "batch": "B5", "test": "test_b5_candidates.py::CandidateAdapterTests.test_three_candidates_and_baseline"},
     {"id": "R05", "batch": "B4", "test": "test_b4_immutable.py::ImmutableCatalogTests.test_immutable_assets_reject_writes"},
-    {"id": "R06", "batch": "B4", "test": "test_b4_immutable.py::CuratorAndJevTests.test_jev_adapter_uses_existing_script_and_positive_control"},
+    {"id": "R06", "batch": "B4", "test": "test_b4_immutable.py::CuratorAndJudgeTests.test_judge_adapter_uses_existing_script_and_positive_control"},
     {"id": "R08", "batch": "B8", "test": "test_b8_apply_transaction.py::ApplyTransactionTests.test_passing_fresh_canary_keeps_exact_winner_commit"},
     {"id": "R09", "batch": "B8", "test": "test_b8_apply_transaction.py::ApplyTransactionTests.test_same_session_canary_is_not_fresh_and_is_reverted"},
     {"id": "R10", "batch": "B8", "test": "test_b8_apply_transaction.py::ApplyTransactionTests.test_failed_canary_creates_exact_commit_then_revert_and_restores_baseline"},

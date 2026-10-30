@@ -91,7 +91,7 @@ class DefaultHostRunnerTests(unittest.TestCase):
             for event in ("UserPromptSubmit", "PostToolUse")
             for group in hooks[event]
             for hook in group["hooks"]
-            if "retro-2-gauge" in hook.get("command", "")
+            if "harness-retro-gauge" in hook.get("command", "")
         ]
         self.assertEqual(2, len(commands))
         self.assertEqual(commands[0], commands[1])

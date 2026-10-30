@@ -23,7 +23,7 @@ Each incident needs:
 - a risk class and root-cause family;
 - a minimal replay fixture and observable result;
 - at least one mechanical check;
-- one target question and one positive-control question;
+- `judge_question` with one target question and `positive_control` with one positive-control question;
 - severity (`major` or `blocker`);
 - human curator metadata and an explicit maintainer confirmation reference.
 

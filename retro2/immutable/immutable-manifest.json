@@ -66,21 +66,21 @@
     "sandbox"
   ],
   "hashes": {
-    "examples/incidents/SYN-001.json": "884eba4d45cbf94d3fe66053e18e89dfe65d275ccc3e0b226ee8ac213017d210",
-    "examples/incidents/SYN-002.json": "a67b231b82d65cbfa97fe9a953fa50e7499ad48dc9e3a9c20b2556f30c60505d",
-    "examples/incidents/SYN-003.json": "e4b0a40474692c999d3897d1c7cdc71c6c9d9bacbad7d80cdf03a77e3a503d3c",
-    "examples/incidents/SYN-004.json": "bf705604d52d91a106dd9ffa4c83de250dab0e9017b684084b1bdf8b25529282",
-    "examples/incidents/SYN-005.json": "38c99b5d9438732a85e290b71c297dc6262cfdaefd5fe5c0aef39adaa09ddd03",
-    "examples/incidents/SYN-006.json": "a68249fe64f40129cd8e0aad7776b87b4c6ac2c6b3ad76d1096de8d7c494f023",
-    "examples/incidents/SYN-007.json": "2bd8e39d12abe3d9a4d5444e85466d218a4394428c969a6a42672f9f1421acb3",
-    "examples/incidents/SYN-008.json": "77d20c60f7500a4694ab026b130137a93617b6ab8d1d3580c8b8b92edce3e7b6",
-    "examples/incidents/SYN-009.json": "3cf4af9cbfdc23d52d3651c78e958ff760b1dda02bb6969f99c076ad6fc50702",
-    "examples/incidents/SYN-010.json": "4d2fdb26a571ed6098b4294dea7e95675f72ebaccca631cfeb83c3378cc895c1",
-    "examples/incidents/SYN-011.json": "6b621a9c56612243b4c412e7b090fbf5101bb0cb651ba551900c9e30b7e52f7f",
-    "examples/incidents/SYN-012.json": "5ee3c3adf98970ec625ae02bd401e26b9be407ebd6feb70dfc5a964c472a3e7b",
-    "retro2/immutable/scoring-policy.json": "9fb160c07775d89b481ebf2426164a9fa45d1df6047fdc2bf5841848e94f74b1",
+    "examples/incidents/SYN-001.json": "a5877ad9c4ce7fb3f9e1c856f260772824bd2c3bda2fca86e4dfbd0354a1637a",
+    "examples/incidents/SYN-002.json": "fce6e6510facfa0236f9f452b2d41ab2275e07e01b7cbafadda83614e8c4af73",
+    "examples/incidents/SYN-003.json": "500f076a2b93043ac7ffd98252808883c21aa34dfc188f127cb9d78d016ec3d7",
+    "examples/incidents/SYN-004.json": "b9636391e60e22380382704d5a32f100229515c9bb2f0b25484a60eaa3454e37",
+    "examples/incidents/SYN-005.json": "90a087bf0ab9ffca2e4fcbcfbe7d67117fe0b192e782b97ce7aa67c27b197cb9",
+    "examples/incidents/SYN-006.json": "1f2147bed6c0973d35e263280a876fad399c7843c7e41a6eaea625deabadb9f2",
+    "examples/incidents/SYN-007.json": "404cd107c578019baf63d30cf365b97d99bab304f243ad7b77b245f1c248ca1a",
+    "examples/incidents/SYN-008.json": "52370a1b09eb728d8ffaa977b753c0c288185c8cedeac4b84bff23928c11f0f2",
+    "examples/incidents/SYN-009.json": "d3a8175ccda07c8bec8af9ddb05fafc59caae76f26df68e2463fa2ea45cfac35",
+    "examples/incidents/SYN-010.json": "10b2ea0a8f5238c23b9f7401ddcfaa67faba53ac8eac181d24604e1b288fcf49",
+    "examples/incidents/SYN-011.json": "300f85957691d82ab664d9d86c6653bdeee669efa02e093b47ef51fb36d31995",
+    "examples/incidents/SYN-012.json": "bdde0f4a2afa6cc0431d9f40bfc21c815a1062b21067e15900b1a45f3df9135f",
+    "retro2/immutable/scoring-policy.json": "e9c3cccaf4c64401fee0663bb44789f5f8a8ab49bf71a2162c649a90672cf40e",
     "retro2/controller/run.py": "64566157811a58b86e655938cf743b945c322bfa6db9a7472a2b75b32cf1b17c",
     "retro2/apply/transaction.py": "545954a7894b01b3ca63265717c965d9d240c3163d02ebc561fffab287b54c31",
-    "retro2/schemas/incident.schema.json": "4a0ab7d29486aab8b479f46125a8c50f572862e912365a03cecd5a2bec5f797a"
+    "retro2/schemas/incident.schema.json": "188604937244a2d91bada490cdb4fd504098b1da5cf3142504962e1c14078063"
   }
 }

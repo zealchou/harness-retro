@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Immutable incident catalog, human curation gate, and thin Jev adapter."""
+"""Immutable incident catalog, human curation gate, and thin probability judge adapter."""
 import fnmatch
 import hashlib
 import json
@@ -12,10 +12,10 @@ import config
 
 
 ROOT = Path(__file__).resolve().parents[1]
-JEV_SCRIPT = config.JEV_SCRIPT
+JUDGE_SCRIPT = config.JUDGE_SCRIPT
 REQUIRED = {
     "incident_id", "title", "source", "risk_class", "root_cause_family",
-    "fixture", "expected_observable", "mechanical_checks", "jev_question",
+    "fixture", "expected_observable", "mechanical_checks", "judge_question",
     "positive_control", "negative_control", "severity", "admission",
 }
 HEX64 = re.compile(r"^[0-9a-f]{64}$")
@@ -50,7 +50,7 @@ def validate_incident(item):
         return False
     source = item.get("source", {})
     admission = item.get("admission", {})
-    questions = item.get("jev_question")
+    questions = item.get("judge_question")
     controls = item.get("positive_control")
     return bool(
         item.get("incident_id")
@@ -160,23 +160,23 @@ def curate_incident(candidate, quarantine_dir, incidents_dir, confirmation=None,
     return {"status": "ADMITTED", "incident_id": incident_id}
 
 
-def evaluate_with_jev(incident, state_file, runner):
+def evaluate_with_judge(incident, state_file, runner):
     if not validate_incident(incident):
         raise ValueError("invalid incident")
     state_file = Path(state_file)
     if not state_file.is_file() or not state_file.read_text(encoding="utf-8").strip():
         raise ValueError("state evidence required")
     policy = json.loads((Path(__file__).with_name("immutable") / "scoring-policy.json").read_text(encoding="utf-8"))
-    if not JEV_SCRIPT.is_file():
+    if not JUDGE_SCRIPT.is_file():
         return {
             "status": "ERROR",
             "probabilities": {},
             "evidence_sha256": hashlib.sha256(state_file.read_bytes()).hexdigest(),
-            "stderr": f"optional semantic judge not found: {JEV_SCRIPT}; set RETRO2_JEV_SCRIPT",
+            "stderr": f"optional probability judge not found: {JUDGE_SCRIPT}; set RETRO2_JUDGE_SCRIPT",
         }
     argv = [
-        sys.executable, str(JEV_SCRIPT), "--state-file", str(state_file),
-        "-q", "target=" + incident["jev_question"][0]["text"],
+        sys.executable, str(JUDGE_SCRIPT), "--state-file", str(state_file),
+        "-q", "target=" + incident["judge_question"][0]["text"],
         "-q", "positive_control=" + incident["positive_control"][0]["text"],
     ]
     code, stdout, stderr = runner(argv)

@@ -119,7 +119,7 @@ class WiringFixture:
                 report.write_text('<html>fresh fixture</html>', encoding='utf-8')
                 print(json.dumps({{'result': 'ok'}}))
                 raise SystemExit(0)
-            if any('jev_judge.py' in arg for arg in sys.argv[1:]):
+            if any('judge.py' in arg for arg in sys.argv[1:]):
                 print('0.950  target')
                 print('0.990  positive_control')
                 raise SystemExit(0)

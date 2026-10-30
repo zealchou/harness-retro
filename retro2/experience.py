@@ -75,7 +75,7 @@ def _render(entries):
 def _project_path(repo):
     return Path(repo).resolve() / "docs/EXPERIENCE.md"
 def _lesson_key(finding):
-    # The same root cause may use different symptom strings; an optional semantic judge can merge them later.
+    # The same root cause may use different symptom strings; an optional probability judge can merge them later.
     references = sorted(
         f"{item.get('component', '')}|{item.get('symptom', '')}"
         for item in finding.get("machine_evidence_refs", [])

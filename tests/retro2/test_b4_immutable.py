@@ -32,7 +32,7 @@ class ImmutableCatalogTests(unittest.TestCase):
             self.assertTrue(adapter.validate_incident(item), item["incident_id"])
             self.assertTrue(adapter.verify_source_evidence(item), item["incident_id"])
             self.assertEqual(64, len(item["source"]["evidence_sha256"]))
-            self.assertEqual(1, len(item["jev_question"]))
+            self.assertEqual(1, len(item["judge_question"]))
             self.assertEqual(1, len(item["positive_control"]))
             self.assertTrue(item["fixture"])
             self.assertTrue(item["mechanical_checks"])
@@ -86,7 +86,7 @@ class ImmutableCatalogTests(unittest.TestCase):
             "after": '{"hooks":{"Stop":[]}}'})["status"])
 
 
-class CuratorAndJevTests(unittest.TestCase):
+class CuratorAndJudgeTests(unittest.TestCase):
     def test_human_confirmed_admission_deduplicates_otherwise_quarantines(self):
         adapter = load_module()
         candidate = {
@@ -98,7 +98,7 @@ class CuratorAndJevTests(unittest.TestCase):
             "fixture": {"input": "safe"},
             "expected_observable": "observable result",
             "mechanical_checks": ["check_fixture"],
-            "jev_question": [{"code": "target", "text": "證據是否顯示結果正確？"}],
+            "judge_question": [{"code": "target", "text": "證據是否顯示結果正確？"}],
             "positive_control": [{"code": "control", "text": "證據是否顯示 fixture 存在？"}],
             "negative_control": [],
             "severity": "major",
@@ -120,7 +120,7 @@ class CuratorAndJevTests(unittest.TestCase):
             self.assertEqual("DUPLICATE", duplicate["status"])
             self.assertEqual(1, len(list((root / "incidents").glob("*.json"))))
 
-    def test_jev_adapter_uses_existing_script_and_positive_control(self):
+    def test_judge_adapter_uses_existing_script_and_positive_control(self):
         adapter = load_module()
         incident_item = json.loads(next((IMMUTABLE / "incidents").glob("*.json")).read_text())
         calls = []
@@ -132,10 +132,10 @@ class CuratorAndJevTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             state = Path(directory, "state.txt")
             state.write_text("fixture and observed evidence")
-            judge = Path(directory, "semantic_judge.py")
+            judge = Path(directory, "judge.py")
             judge.write_text("# configured test double\n", encoding="utf-8")
-            adapter.JEV_SCRIPT = judge
-            result = adapter.evaluate_with_jev(incident_item, state, passing_runner)
+            adapter.JUDGE_SCRIPT = judge
+            result = adapter.evaluate_with_judge(incident_item, state, passing_runner)
             self.assertEqual("PASS", result["status"])
             self.assertTrue(Path(calls[0][1]).samefile(judge))
             self.assertEqual(2, calls[0].count("-q"))
@@ -143,7 +143,7 @@ class CuratorAndJevTests(unittest.TestCase):
             def bad_control_runner(_argv):
                 return 0, "0.990  target\n0.500  positive_control\n", ""
 
-            invalid = adapter.evaluate_with_jev(incident_item, state, bad_control_runner)
+            invalid = adapter.evaluate_with_judge(incident_item, state, bad_control_runner)
             self.assertEqual("INVALID_CONTROL", invalid["status"])
 
 

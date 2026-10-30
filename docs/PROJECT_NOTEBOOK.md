@@ -40,4 +40,12 @@
 - **Blocked or unfinished:** the single local commit cannot be created in this environment. All deliverable files remain present as untracked working-tree content; no remote was configured and nothing was pushed.
 - **Next:** rerun `git add -A && git commit -m "Prepare harness-retro open-source review candidate"` once `.git` is writable, then rerun `python3 -m pytest -q`.
 
+## 2026-10-30 — OSS fix 1: installed hook command and neutral judge naming
+
+- **Who:** primary implementation agent
+- **What:** changed the public hook example to `harness-retro-gauge`; added a console-script-derived validation test; replaced the private judge codename in source, examples, schemas, immutable policy, contract, tests, and allowed documentation; updated immutable digests without reordering their manifest; made the package license metadata compatible with the supported setuptools version.
+- **Evidence:** complete suite reached 173 passed, 9 skipped, and 14 subtests; the immutable snapshot verified with no mismatches; the required sanitization scan returned zero matches; an editable install in an isolated venv exposed `harness-retro-gauge`, whose clean-HOME hook execution exited 0 and created only its queue state.
+- **Blocked or unfinished:** no implementation blocker. The sandbox has no package-index network, so the editable-install proof used its already available setuptools with `--no-build-isolation`.
+- **Next:** record the final GDD/sanitization evidence, create the requested local commit, and leave remote push to the controller.
+
 

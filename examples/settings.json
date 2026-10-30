@@ -1,10 +1,10 @@
 {
   "hooks": {
     "UserPromptSubmit": [
-      {"hooks": [{"type": "command", "command": "RETRO2_QUEUE_ENABLED=1 retro-2-gauge"}]}
+      {"hooks": [{"type": "command", "command": "RETRO2_QUEUE_ENABLED=1 harness-retro-gauge"}]}
     ],
     "PostToolUse": [
-      {"hooks": [{"type": "command", "command": "RETRO2_QUEUE_ENABLED=1 retro-2-gauge"}]}
+      {"hooks": [{"type": "command", "command": "RETRO2_QUEUE_ENABLED=1 harness-retro-gauge"}]}
     ]
   }
 }

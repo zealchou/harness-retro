@@ -29,7 +29,7 @@ GLOBAL_RULES_FILE = _path("RETRO2_GLOBAL_RULES_FILE", RETRO2_HOME / "CLAUDE.md")
 GLOBAL_EXPERIENCE_FILE = _path(
     "RETRO2_GLOBAL_EXPERIENCE_FILE", RETRO2_HOME / "memory" / "EXPERIENCE.md"
 )
-JEV_SCRIPT = _path("RETRO2_JEV_SCRIPT", RETRO2_HOME / "scripts" / "jev_judge.py")
+JUDGE_SCRIPT = _path("RETRO2_JUDGE_SCRIPT", RETRO2_HOME / "scripts" / "judge.py")
 INCIDENT_EVIDENCE_ROOT = _path(
     "RETRO2_INCIDENT_EVIDENCE_ROOT", Path(__file__).resolve().parents[1]
 )

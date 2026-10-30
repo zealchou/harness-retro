@@ -100,7 +100,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 | `RETRO2_HOOK_AUDIT_SCRIPT` | `$RETRO2_HOME/skills/hook-doctor/scripts/hook_audit.py` | 可選 hook 健檢 |
 | `RETRO2_GLOBAL_RULES_FILE` | `$RETRO2_HOME/CLAUDE.md` | 可選全域規則證據 |
 | `RETRO2_GLOBAL_EXPERIENCE_FILE` | `$RETRO2_HOME/memory/EXPERIENCE.md` | 升格後經驗筆記 |
-| `RETRO2_JEV_SCRIPT` | `$RETRO2_HOME/scripts/jev_judge.py` | 可選語意判斷器 |
+| `RETRO2_JUDGE_SCRIPT` | `$RETRO2_HOME/scripts/judge.py` | 可選機率判斷器 |
 | `RETRO2_INCIDENT_EVIDENCE_ROOT` | 倉庫／套件根目錄 | 相對事故證據基準 |
 | `RETRO2_CLAUDE_CREDENTIAL_FILE` | `$RETRO2_HOME/.credentials.json` | Claude 憑證唯讀掛載 |
 | `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | 可選 Codex 憑證唯讀掛載 |

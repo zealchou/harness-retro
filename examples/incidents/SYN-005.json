@@ -19,7 +19,7 @@
     "evidence_sha256",
     "fixture_replay"
   ],
-  "jev_question": [
+  "judge_question": [
     {
       "code": "target",
       "text": "Does the evidence demonstrate the unsafe default failure?"

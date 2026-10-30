@@ -55,7 +55,7 @@ If bubblewrap or the required namespace is unavailable, safety-sensitive executi
 |---|---|
 | hook audit | health record says skipped/degraded; core health can proceed |
 | managed project list | current project only |
-| semantic judge | explicit optional-component error; no guessed score |
+| probability judge | explicit optional-component error; no guessed score |
 | diagnostic paths | no observations from that source |
 | Codex executable | optional backend fails with a clear unavailable error |
 | Claude executable | full default run cannot proceed; help and enqueue remain usable |

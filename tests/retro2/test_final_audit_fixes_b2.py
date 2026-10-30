@@ -58,7 +58,7 @@ class ProductionRunnerTests(unittest.TestCase):
                 with pathlib.Path({str(calls)!r}).open('a') as handle:
                     handle.write(json.dumps({{'station': station, 'request': request}}) + '\\n')
                 if station == 'score':
-                    result = {{'status': 'SCORED', 'winner_package': {{'state': 'SCORED'}}, 'jev_probabilities': [], 'metrics': {{'precision': {{'value': 1, 'unit': 'ratio'}}, 'reproducibility': {{'value': 1, 'unit': 'ratio'}}, 'token_cost': {{'value': 1, 'unit': 'tokens'}}}}}}
+                    result = {{'status': 'SCORED', 'winner_package': {{'state': 'SCORED'}}, 'judge_probabilities': [], 'metrics': {{'precision': {{'value': 1, 'unit': 'ratio'}}, 'reproducibility': {{'value': 1, 'unit': 'ratio'}}, 'token_cost': {{'value': 1, 'unit': 'tokens'}}}}}}
                 elif station == 'apply_experience':
                     result = {{'status': 'CANARY_OK', 'commit_sha': 'a' * 40, 'revert_sha': None}}
                 else:

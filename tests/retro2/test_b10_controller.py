@@ -44,7 +44,7 @@ class FakeStationRunner:
             "score": {
                 "status": "SCORED",
                 "winner_package": winner_package(),
-                "jev_probabilities": [0.95, 0.82],
+                "judge_probabilities": [0.95, 0.82],
                 "metrics": {
                     "precision": {"value": 0.9, "unit": "ratio"},
                     "reproducibility": {"value": 1.0, "unit": "ratio"},

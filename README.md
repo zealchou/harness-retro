@@ -84,7 +84,7 @@ Optional integrations:
 
 - hook-audit script (`RETRO2_HOOK_AUDIT_SCRIPT`): missing means the health report records a degraded, skipped optional check;
 - managed-project index (`RETRO2_MANAGED_PROJECTS_FILE`): missing limits experience lookup to the current target;
-- semantic incident judge (`RETRO2_JEV_SCRIPT`): missing returns an explicit optional-component error instead of guessing;
+- probability judge (`RETRO2_JUDGE_SCRIPT`): missing returns an explicit optional-component error instead of guessing;
 - Codex backend (`RETRO2_MODEL_BACKEND=codex`): experimental and not required for the default Claude path;
 - credentials specified by file path for an approved model endpoint.
 
@@ -108,7 +108,7 @@ All portable filesystem defaults live in `retro2/config.py`.
 | `RETRO2_HOOK_AUDIT_SCRIPT` | `$RETRO2_HOME/skills/hook-doctor/scripts/hook_audit.py` | Optional health audit |
 | `RETRO2_GLOBAL_RULES_FILE` | `$RETRO2_HOME/CLAUDE.md` | Optional rule-file evidence |
 | `RETRO2_GLOBAL_EXPERIENCE_FILE` | `$RETRO2_HOME/memory/EXPERIENCE.md` | Promoted experience notes |
-| `RETRO2_JEV_SCRIPT` | `$RETRO2_HOME/scripts/jev_judge.py` | Optional semantic judge |
+| `RETRO2_JUDGE_SCRIPT` | `$RETRO2_HOME/scripts/judge.py` | Optional probability judge |
 | `RETRO2_INCIDENT_EVIDENCE_ROOT` | repository/package root | Base for relative incident evidence |
 | `RETRO2_CLAUDE_CREDENTIAL_FILE` | `$RETRO2_HOME/.credentials.json` | Claude credential file bind |
 | `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | Optional Codex credential file bind |
