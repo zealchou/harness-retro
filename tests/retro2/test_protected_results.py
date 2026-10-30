@@ -66,43 +66,63 @@ class ProtectedResultsTests(unittest.TestCase):
         self.assertIn(expected / "objects", roots)
         self.assertIn(expected / "refs", roots)
 
-    def test_restricted_git_view_mounts_only_a_read_only_scaffold_and_named_metadata(self):
-        roots = station_host.PythonStationRunner._git_metadata_roots(Path.home() / ".claude")
+    def test_apply_allowlist_does_not_mount_home_or_host_root(self):
         observed = {}
         completed = subprocess.CompletedProcess(["bwrap"], 0, "R2_CHILD_STARTED\nok", "")
-        with mock.patch.object(host_exits.shutil, "which", return_value="/usr/bin/bwrap"), \
-                mock.patch.object(host_exits.subprocess, "run", side_effect=lambda argv, **_kwargs: observed.update(argv=argv) or completed):
-            result = host_exits.run_restricted(["true"], ROOT, git_metadata_roots=roots)
+        with tempfile.TemporaryDirectory() as directory:
+            subject = Path(directory) / "subject"
+            scratch = Path(directory) / "scratch"
+            subject.mkdir()
+            scratch.mkdir()
+            with mock.patch.object(host_exits.shutil, "which", return_value="/usr/bin/bwrap"), \
+                    mock.patch.object(host_exits.subprocess, "run", side_effect=lambda argv, **_kwargs: observed.update(argv=argv) or completed):
+                result = host_exits.run_allowlisted(
+                    ["true"], scratch, cwd=subject, profile="apply", subject_root=subject,
+                    env={"HOME": str(Path.home()), "PATH": "/bin", "LANG": "C"},
+                )
         self.assertTrue(result.child_started)
         command = observed["argv"]
-        home_claude = str(Path.home() / ".claude")
         mounts = [command[index:index + 3] for index in range(len(command) - 2)]
-        self.assertIn(home_claude, command)
-        self.assertTrue(any(mount[0] == "--ro-bind" and mount[2] == home_claude for mount in mounts))
-        for root in roots:
-            self.assertIn(["--ro-bind", str(root), str(root)], mounts)
-        self.assertNotIn(["--bind", str(Path.home() / ".claude/.git"), str(Path.home() / ".claude/.git")],
-                         mounts)
+        self.assertIn("--tmpfs", command)
+        self.assertEqual("/", command[command.index("--tmpfs") + 1])
+        self.assertNotIn(["--ro-bind", "/", "/"], mounts)
+        self.assertFalse(any(str(Path.home()) in " ".join(mount) for mount in mounts if mount[0] == "--ro-bind"))
+        self.assertIn(["--ro-bind", str(subject), str(subject)], mounts)
+        self.assertIn(["--bind", str(scratch), str(scratch)], mounts)
 
     @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
-    def test_restricted_child_cannot_write_host_git_metadata_view(self):
-        """當 retro 測試改法時，測試程式改不到 Claude 的版本紀錄。"""
-        metadata_root = Path.home() / ".claude"
-        roots = station_host.PythonStationRunner._git_metadata_roots(metadata_root)
-        self.assertTrue(roots)
-        target = metadata_root / ".git" / f"retro2-write-denied-{uuid.uuid4().hex}"
-        original = "host-original\n"
-        target.write_text(original, encoding="utf-8")
-        self.addCleanup(target.unlink, missing_ok=True)
-        script = "import pathlib,sys;\ntry: pathlib.Path(sys.argv[1]).write_text('bad')\nexcept OSError: print('DENIED')\nelse: print('WROTE')"
+    def test_apply_child_cannot_read_or_write_host_git_metadata(self):
+        """Apply's allow-list does not mount host git metadata outside the subject."""
         with tempfile.TemporaryDirectory() as directory:
-            result = host_exits.run_restricted(
-                [sys.executable, "-B", "-c", script, str(target)], directory,
-                git_metadata_roots=roots,
+            root = Path(directory)
+            subject = root / "subject"
+            scratch = root / "scratch"
+            outside = root / "host-git"
+            subject.mkdir()
+            scratch.mkdir()
+            outside.mkdir()
+            target = outside / "HEAD"
+            original = "host-original\n"
+            target.write_text(original, encoding="utf-8")
+            script = (
+                "import pathlib,sys\n"
+                "target=pathlib.Path(sys.argv[1])\n"
+                "print('ABSENT' if not target.exists() else 'PRESENT')\n"
+                "try:\n"
+                "    target.write_text('bad')\n"
+                "    print('WROTE')\n"
+                "except OSError:\n"
+                "    print('DENIED')\n"
             )
-        self.assertTrue(result.child_started, result.stderr)
-        self.assertIn("DENIED", result.stdout)
-        self.assertEqual(original, target.read_text(encoding="utf-8"))
+            result = host_exits.run_allowlisted(
+                [sys.executable, "-B", "-c", script, str(target)], scratch,
+                cwd=subject, profile="apply", subject_root=subject,
+                env={"HOME": str(Path.home()), "PATH": os.environ.get("PATH", "/usr/bin"), "LANG": "C"},
+            )
+            self.assertTrue(result.child_started, result.stderr)
+            self.assertIn("ABSENT", result.stdout)
+            self.assertIn("DENIED", result.stdout)
+            self.assertEqual(original, target.read_text(encoding="utf-8"))
 
     @unittest.skipUnless(supports_bwrap_namespace(), "requires writable HOME and a usable bwrap network namespace")
     def test_restricted_child_cannot_write_host_receipt_subject_or_git_common_dir(self):
@@ -118,14 +138,20 @@ class ProtectedResultsTests(unittest.TestCase):
             subject = root / "formal-subject.txt"
             subject.write_text("subject\n", encoding="utf-8")
             script = "import pathlib,sys; targets=[pathlib.Path(x) for x in sys.argv[1:]]; [p.write_text('mutated') for p in targets]"
-            result = host_exits.run_restricted(
-                [sys.executable, "-c", script, str(protected), str(common / "HEAD"), str(subject)], worktree
+            result = host_exits.run_allowlisted(
+                [sys.executable, "-c", script, str(protected), str(common / "HEAD"), str(subject)], worktree,
+                cwd=worktree, profile="apply", subject_root=worktree,
+                env={"HOME": str(Path.home()), "PATH": os.environ.get("PATH", "/usr/bin"), "LANG": "C"},
             )
             if result.returncode == 0:
                 self.assertEqual("host\n", protected.read_text(encoding="utf-8"))
             else:
-                # 子程序有啟動、寫入被唯讀擋下；或核心不允許建網路命名空間而整個沒啟動（fail-closed）。
-                self.assertTrue("Read-only file system" in result.stderr or "NETLINK_ROUTE" in result.stderr, result.stderr)
+                # The paths are outside the allow-list, so the write fails closed.
+                # A kernel that cannot build a network namespace never starts the child.
+                self.assertTrue(
+                    result.child_started or "NETLINK_ROUTE" in result.stderr,
+                    result.stderr,
+                )
             self.assertEqual("host\n", protected.read_text(encoding="utf-8"))
             self.assertEqual("host\n", (common / "HEAD").read_text(encoding="utf-8"))
             self.assertEqual("subject\n", subject.read_text(encoding="utf-8"))

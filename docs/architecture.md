@@ -69,7 +69,7 @@ The optional integrations—hook audit, managed-project list, probability judge,
 
 ## Isolation
 
-Candidate generation and qualification use disposable Git worktrees. On Linux, `host_exits.run_restricted` uses bubblewrap to expose named read-only roots, one writable worktree, minimal devices, and an isolated network namespace unless a model call explicitly needs its endpoint. Diagnosis starts from an empty root and mounts the allow-list in [sandbox-allowlist.md](sandbox-allowlist.md). A project that is `$HOME`, or that contains `~/.claude` or `RETRO2_HOME`, is not mounted as one tree. Missing bubblewrap fails closed.
+Candidate generation and qualification use disposable Git worktrees. On Linux, diagnosis, candidate generation, and apply all use `host_exits.run_allowlisted`: an empty bubblewrap root and the mount list in [sandbox-allowlist.md](sandbox-allowlist.md). Apply mounts the subject read-only, gives the scratch directory the only write bind, and disables network. No model is started for apply. A project that is `$HOME`, or that contains `~/.claude` or `RETRO2_HOME`, is not mounted as one tree. Codex is disabled until the credential broker in that document ships. Missing bubblewrap fails closed.
 
 ## Application and rollback
 

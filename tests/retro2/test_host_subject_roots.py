@@ -410,82 +410,160 @@ class HostSubjectRootTests(unittest.TestCase):
             with mock.patch.object(host_exits.config, "RETRO2_HOME", harness), \
                     mock.patch.object(host_exits.shutil, "which", return_value="/usr/bin/bwrap"), \
                     mock.patch.object(host_exits.subprocess, "run", return_value=completed) as run:
-                host_exits.run_restricted(
-                    ["true"], writable, cwd=home, readonly_roots=(home,),
-                    credential_paths=(credential,), env={"HOME": str(home), "PATH": "/bin"},
+                host_exits.run_allowlisted(
+                    ["true"], writable, cwd=writable, profile="diagnosis",
+                    project_root=home, harness_root=harness,
+                    harness_reads=(harness / "CLAUDE.md",),
+                    credential_paths=(credential,),
+                    env={"HOME": str(home), "PATH": "/bin", "LANG": "C"},
                 )
             argv = run.call_args.args[0]
+            self.assertIn("--tmpfs", argv)
+            self.assertNotIn(["--ro-bind", "/", "/"], [argv[index:index + 3] for index in range(len(argv) - 2)])
+            self.assertNotIn(["--ro-bind", str(home), str(home)], [argv[index:index + 3] for index in range(len(argv) - 2)])
+            self.assertFalse(any(
+                argv[index] == "--ro-bind" and argv[index + 2] == str(credential)
+                for index in range(len(argv) - 2)
+            ))
 
-            def mount_at(flag, dest, slot):
-                dest = str(Path(dest).resolve())
-                return [
-                    index for index in range(len(argv) - slot)
-                    if argv[index] == flag and str(Path(argv[index + slot]).resolve()) == dest
-                ]
-
-            repo_binds = mount_at("--ro-bind", home, 2)
-            harness_masks = mount_at("--tmpfs", harness, 1)
-            self.assertTrue(repo_binds)
-            self.assertTrue(harness_masks)
-            self.assertGreater(harness_masks[-1], repo_binds[0])
-            self.assertEqual(mount_at("--ro-bind", credential, 2), [])
-
-    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
-    def test_codex_auth_is_mounted_under_codex_home_not_in_the_project(self):
+    def test_codex_auth_is_not_read_or_mounted(self):
         with self._outside_tmp("retro2-codex-auth-") as directory:
             root = Path(directory)
             home = root / "home"
             codex_dir = home / ".codex"
             codex_dir.mkdir(parents=True)
-            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
             auth = codex_dir / "auth.json"
-            auth.write_text(marker + "\n", encoding="utf-8")
-            (home / "repo-visible.txt").write_text("project\n", encoding="utf-8")
+            auth.write_text("SYNTHETIC-CODEX-AUTH\n", encoding="utf-8")
+            auth.chmod(0)
+            project = root / "project"
+            project.mkdir()
             writable = root / "work"
             writable.mkdir()
-            checker = root / "check_codex_auth.py"
-            checker.write_text(
-                "import json, os\n"
-                "from pathlib import Path\n"
+            with mock.patch.object(host_exits.subprocess, "run") as spawned:
+                with self.assertRaisesRegex(host_exits.HostExitError, "Codex backend is disabled"):
+                    host_exits.run_allowlisted(
+                        ["true"], writable, cwd=project, profile="candidate",
+                        project_root=project, harness_root=home / ".claude",
+                        credential_paths=(auth,),
+                        env={"HOME": str(home), "PATH": "/bin", "LANG": "C"},
+                    )
+            spawned.assert_not_called()
+            self.assertEqual([], list(Path("/var/tmp").glob("retro2-codex-min-*")))
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_allowlisted_symlink_to_home_is_refused(self):
+        with self._outside_tmp("retro2-symlink-escape-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            harness = home / ".claude"
+            (harness / "scripts" / "logs").mkdir(parents=True)
+            (harness / "CLAUDE.md").write_text("rules\n", encoding="utf-8")
+            (harness / "settings.json").write_text("{}\n", encoding="utf-8")
+            (harness / "hooks").symlink_to(home, target_is_directory=True)
+            (home / ".ssh").mkdir()
+            (home / ".ssh" / "id").write_text("SYNTHETIC-SSH\n", encoding="utf-8")
+            (home / "canary.txt").write_text("CANARY\n", encoding="utf-8")
+            credential = harness / ".credentials.json"
+            credential.write_text("SYNTHETIC-MARKER\n", encoding="utf-8")
+            writable = root / "work"
+            writable.mkdir()
+            with mock.patch.object(host_exits.config, "RETRO2_HOME", harness):
+                with self.assertRaisesRegex(host_exits.HostExitError, "symlink"):
+                    host_exits.run_allowlisted(
+                        ["true"], writable, cwd=writable, project_root=writable, harness_root=harness,
+                        harness_reads=(
+                            harness / "CLAUDE.md", harness / "settings.json",
+                            harness / "hooks", harness / "scripts" / "logs",
+                        ),
+                        credential_paths=(credential,),
+                        env={"HOME": str(home), "PATH": "/bin", "LANG": "C"},
+                    )
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_allowlisted_diagnostics_symlink_to_home_is_refused(self):
+        with self._outside_tmp("retro2-diag-symlink-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            harness = home / ".claude"
+            (harness / "scripts" / "logs").mkdir(parents=True)
+            (harness / "CLAUDE.md").write_text("rules\n", encoding="utf-8")
+            outside = root / "outside"
+            outside.mkdir()
+            diagnostics = outside / "diagnostics"
+            diagnostics.symlink_to(home, target_is_directory=True)
+            planted = home / "diag"
+            planted.symlink_to(home, target_is_directory=True)
+            writable = root / "work"
+            writable.mkdir()
+            with mock.patch.object(host_exits.config, "RETRO2_HOME", harness):
+                for entry in (diagnostics, planted):
+                    with self.assertRaisesRegex(host_exits.HostExitError, "symlink"):
+                        host_exits.run_allowlisted(
+                            ["true"], writable, cwd=writable, project_root=writable, harness_root=harness,
+                            harness_reads=(harness / "CLAUDE.md",),
+                            diagnostics=entry,
+                            env={"HOME": str(home), "PATH": "/bin", "LANG": "C"},
+                        )
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_candidate_allowlist_hides_home_canaries_and_repo_symlink(self):
+        with self._outside_tmp("retro2-candidate-hide-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            home.mkdir()
+            (home / "canary.txt").write_text("CANARY-HOME\n", encoding="utf-8")
+            (home / ".bash_history").write_text("history\n", encoding="utf-8")
+            (home / ".ssh").mkdir()
+            (home / ".ssh" / "id_ed25519").write_text("SYNTHETIC-SSH\n", encoding="utf-8")
+            (home / ".codex").mkdir()
+            (home / ".codex" / "auth.json").write_text("SYNTHETIC-CODEX-AUTH\n", encoding="utf-8")
+            host_tmp = Path("/tmp") / ("retro2-fake-auth-" + secrets.token_hex(6))
+            host_tmp.write_text("SYNTHETIC-TMP-AUTH\n", encoding="utf-8")
+            self.addCleanup(host_tmp.unlink, missing_ok=True)
+            harness = home / ".claude"
+            harness.mkdir()
+            credential = harness / ".credentials.json"
+            credential.write_text("SYNTHETIC-CLAUDE-CRED\n", encoding="utf-8")
+            work = root / "worktree"
+            work.mkdir()
+            (work / "target.py").write_text("x = 1\n", encoding="utf-8")
+            (work / "escape").symlink_to(home / "canary.txt")
+            probe = work / "probe.py"
+            probe.write_text(
+                "import json, os\nfrom pathlib import Path\n"
                 "home = Path(os.environ['HOME'])\n"
-                "original = home / '.codex' / 'auth.json'\n"
-                "codex_home = Path(os.environ['CODEX_HOME'])\n"
-                "mounted = codex_home / 'auth.json'\n"
-                "statuses = []\n"
-                "statuses.append('ORIGINAL_ABSENT' if not original.exists() else 'ORIGINAL_PRESENT')\n"
-                "statuses.append('CODEX_HOME_OUTSIDE' if not codex_home.resolve().is_relative_to(home.resolve()) else 'CODEX_HOME_INSIDE')\n"
+                "link = Path('escape')\n"
                 "try:\n"
-                "    data = mounted.read_text(encoding='utf-8')\n"
-                "    statuses.append('AUTH_READABLE' if data.startswith('SYNTHETIC-MARKER-') else 'AUTH_UNEXPECTED')\n"
+                "    leaked = link.read_text(encoding='utf-8')\n"
                 "except OSError:\n"
-                "    statuses.append('AUTH_UNREADABLE')\n"
-                "try:\n"
-                "    mounted.write_text('nope', encoding='utf-8')\n"
-                "    statuses.append('AUTH_WRITABLE')\n"
-                "except OSError:\n"
-                "    statuses.append('AUTH_READONLY')\n"
-                "leaked = False\n"
-                "for path in home.rglob('*'):\n"
-                "    if not path.is_file():\n"
-                "        continue\n"
-                "    try:\n"
-                "        leaked = leaked or 'SYNTHETIC-MARKER-' in path.read_text(encoding='utf-8', errors='ignore')\n"
-                "    except OSError:\n"
-                "        pass\n"
-                "statuses.append('HOME_CLEAN' if not leaked else 'MARKER_IN_HOME')\n"
-                "print(json.dumps(statuses))\n",
+                "    leaked = ''\n"
+                "rows = {\n"
+                " 'home_canary': (home / 'canary.txt').is_file(),\n"
+                " 'bash_history': (home / '.bash_history').is_file(),\n"
+                " 'ssh': (home / '.ssh' / 'id_ed25519').is_file(),\n"
+                " 'codex_auth': (home / '.codex' / 'auth.json').is_file(),\n"
+                " 'tmp_auth': Path(%r).is_file(),\n"
+                " 'repo_symlink': leaked.startswith('CANARY'),\n"
+                " 'codex_home': 'CODEX_HOME' in os.environ,\n"
+                "}\n"
+                "print('PROBE ' + json.dumps(rows))\n" % str(host_tmp),
                 encoding="utf-8",
             )
-            result = host_exits.run_restricted(
-                [sys.executable, str(checker)], writable, cwd=home, readonly_roots=(home,),
-                credential_paths=(auth,), env={"HOME": str(home), "PATH": os.environ.get("PATH", "/usr/bin"), "LANG": "C"},
-            )
+            with mock.patch.object(host_exits.config, "RETRO2_HOME", harness):
+                result = host_exits.run_allowlisted(
+                    [sys.executable, str(probe)], work, cwd=work, allow_network=True,
+                    profile="candidate", project_root=work, harness_root=harness,
+                    credential_paths=(credential,),
+                    env={"HOME": str(home), "PATH": os.environ.get("PATH", "/usr/bin"), "LANG": "C"},
+                )
             self.assertTrue(result.child_started, result.stderr)
             self.assertEqual(0, result.returncode, result.stderr)
-            self.assertEqual(
-                ["ORIGINAL_ABSENT", "CODEX_HOME_OUTSIDE", "AUTH_READABLE", "AUTH_READONLY", "HOME_CLEAN"],
-                json.loads(result.stdout),
-            )
+            rows = json.loads(result.stdout.removeprefix("PROBE ").strip())
+            self.assertEqual({
+                "home_canary": False, "bash_history": False, "ssh": False,
+                "codex_auth": False, "tmp_auth": False, "repo_symlink": False,
+                "codex_home": False,
+            }, rows)
 
     def test_credential_mount_uses_add_dir_for_overlap(self):
         with self._outside_tmp("retro2-overlap-") as directory:
@@ -498,8 +576,10 @@ class HostSubjectRootTests(unittest.TestCase):
             writable.mkdir()
             with mock.patch.object(host_exits.config, "RETRO2_HOME", harness):
                 with self.assertRaisesRegex(host_exits.HostExitError, "overlaps"):
-                    host_exits.run_restricted(
-                        ["claude", "--add-dir", "/tmp"], writable, credential_paths=(credential,),
+                    host_exits.run_allowlisted(
+                        ["true", "--add-dir", "/tmp"], writable, cwd=writable, profile="diagnosis",
+                        project_root=writable, harness_root=harness, credential_paths=(credential,),
+                        env={"HOME": str(root / "home"), "PATH": "/bin", "LANG": "C"},
                     )
 
 
