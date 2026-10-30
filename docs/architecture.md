@@ -63,13 +63,13 @@ The main execution slice is the first seven values. `maintenance` is advisory-on
 
 ## Configuration and runtime state
 
-`retro2/config.py` is the one source for portable filesystem defaults. Runtime state belongs under `RETRO2_STATE_DIR`; it is ignored by Git. Synthetic public examples live under `examples/`, never in runtime state.
+`retro2/config.py` is the one source for portable filesystem defaults. Queue state belongs under `RETRO2_STATE_DIR`. Run artifacts, candidate worktrees, and apply scratch default to `$XDG_STATE_HOME/harness-retro/runs` so they are not inside the harness. Synthetic public examples live under `examples/`, never in runtime state.
 
 The optional integrations—hook audit, managed-project list, probability judge, diagnostics, and Codex backend—are leaves. The probability judge is configured by `RETRO2_JUDGE_SCRIPT` and consumes each incident's `judge_question`. Missing leaves must yield a specific skip, degradation, or error and must not change the seven-stage order.
 
 ## Isolation
 
-Candidate generation and qualification use disposable Git worktrees. On Linux, `host_exits.run_restricted` uses bubblewrap to expose named read-only roots, one writable worktree, minimal devices, and an isolated network namespace unless a model call explicitly needs its endpoint. Diagnosis masks `$HOME/.claude` and `RETRO2_HOME`, remounts only the allowlisted harness paths, and keeps the Claude credential file and the scratch directory outside the model's read directories. Missing bubblewrap fails closed.
+Candidate generation and qualification use disposable Git worktrees. On Linux, diagnosis, candidate generation, and apply all use `host_exits.run_allowlisted`: an empty bubblewrap root and the mount list in [sandbox-allowlist.md](sandbox-allowlist.md). Apply mounts the subject read-only, gives the scratch directory the only write bind, and disables network. No model is started for apply. A project that is `$HOME`, or that contains `~/.claude` or `RETRO2_HOME`, is not mounted as one tree. Codex is disabled until the credential broker in that document ships. Missing bubblewrap fails closed.
 
 ## Application and rollback
 

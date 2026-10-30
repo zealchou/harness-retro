@@ -97,7 +97,7 @@ Optional integrations:
 - hook-audit script (`RETRO2_HOOK_AUDIT_SCRIPT`): missing means the health report records a degraded, skipped optional check;
 - managed-project index (`RETRO2_MANAGED_PROJECTS_FILE`): missing limits experience lookup to the current target;
 - probability judge (`RETRO2_JUDGE_SCRIPT`): missing returns an explicit optional-component error instead of guessing;
-- Codex backend (`RETRO2_MODEL_BACKEND=codex`): experimental and not required for the default Claude path;
+- Codex backend (`RETRO2_MODEL_BACKEND=codex`): disabled until a host-side credential broker ships. Selecting it fails closed (`Codex backend is disabled until the host-side credential broker ships; see docs/sandbox-allowlist.md#follow-up-credential-broker`). No Codex `auth.json` is copied or mounted. Diagnosis, candidate generation, and apply each use the empty-root allow-list. The candidate worktree is read-write. Apply mounts the subject read-only, keeps network off, and does not start a model. Claude's login credential file is still mounted read-only inside the sandbox (under /tmp as CLAUDE_CONFIG_DIR); this is a known residual risk until the key broker lands;
 - credentials specified by file path for an approved model endpoint.
 
 Without `bwrap`, safety-sensitive isolated execution fails closed. Tests that specifically require an available namespace skip with their reason; the assertions remain in the suite.
@@ -111,7 +111,7 @@ All portable filesystem defaults live in `retro2/config.py`.
 | `RETRO2_HOME` | `~/.claude` | Host harness root |
 | `RETRO2_STATE_DIR` | `$RETRO2_HOME/retro-2` | Runtime state root |
 | `RETRO2_QUEUE_DIR` | `$RETRO2_STATE_DIR/queue` | Queue and pressure state |
-| `RETRO2_RUNS_DIR` | `$RETRO2_STATE_DIR/runs` | Run artifacts and receipts |
+| `RETRO2_RUNS_DIR` | `$XDG_STATE_HOME/harness-retro/runs` (`~/.local/state/harness-retro/runs` when unset) | Run artifacts, candidate worktrees, and apply scratch. Outside the harness so those directories can be mounted |
 | `RETRO2_MAINTENANCE_DIR` | `$RETRO2_STATE_DIR/maintenance/manual` | Advisory maintenance reports |
 | `RETRO2_TRANSCRIPTS_DIR` | `$RETRO2_HOME/projects` | Default transcript lookup |
 | `RETRO2_USAGE_DATA_DIR` | `$RETRO2_HOME/usage-data` | Optional usage evidence |
@@ -123,11 +123,11 @@ All portable filesystem defaults live in `retro2/config.py`.
 | `RETRO2_JUDGE_SCRIPT` | `$RETRO2_HOME/scripts/judge.py` | Optional probability judge |
 | `RETRO2_INCIDENT_EVIDENCE_ROOT` | repository/package root | Base for relative incident evidence |
 | `RETRO2_CLAUDE_CREDENTIAL_FILE` | `$RETRO2_HOME/.credentials.json` | Claude credential file bind |
-| `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | Optional Codex credential file bind |
+| `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | Unused. Codex is disabled; this file is not copied or mounted |
 | `RETRO2_GATE_LOGS` | host log plus diagnostics directory | `:`-separated evidence paths |
 | `RETRO2_CLAUDE_COMMAND` | `claude` | Claude executable command |
-| `RETRO2_CODEX_COMMAND` | `codex` | Optional Codex executable command |
-| `RETRO2_MODEL_BACKEND` | `claude` | Set to `codex` for the optional backend |
+| `RETRO2_CODEX_COMMAND` | `codex` | Unused while Codex is disabled |
+| `RETRO2_MODEL_BACKEND` | `claude` | `codex` fails closed until the credential broker ships |
 | `RETRO2_QUEUE_ENABLED` | unset | Opt in to hook enqueueing |
 | `RETRO2_GAUGE_STATE_DIR` | `/tmp/retro2-context-state` | Hook lock/state directory |
 | `RETRO2_CONTEXT_WINDOW` | `800000` | Context gauge denominator |
@@ -157,7 +157,7 @@ Turn the correction into a rule or a test, not just a chat message. harness-retr
 A skill is faster to install and runs inside Claude Code. harness-retro needs Linux and bubblewrap, but it tests every candidate fix in isolation, binds your approval to the exact patch, and keeps a receipt for rollback. See "How it differs from a `/retro` skill" above.
 
 **Does it send my code or transcripts anywhere, and what does it cost?**  
-Yes, to your own Claude account. With the default Claude backend, harness-retro sends up to the 30 most recent messages you typed in the session (each cut to 1,500 characters) to the model through your own `claude -p` CLI, and the model can read, but not change, your repository, parts of `~/.claude` (`CLAUDE.md`, `settings.json`, `hooks`, and `scripts/logs`), and the diagnostics directory (`/tmp/retro2-diagnostics` by default). harness-retro has no telemetry of its own and sends nothing to its authors. It uses your own Claude quota, and each model call has a built-in spending cap of US$3 or US$5. Candidate tests run in a bubblewrap sandbox with network access turned off.
+Yes, to your own Claude account. With the default Claude backend, harness-retro sends up to the 30 most recent messages you typed in the session (each cut to 1,500 characters) to the model through your own `claude -p` CLI, and the model can read, but not change, your repository, parts of the harness (`~/.claude`, or `RETRO2_HOME` when set: `CLAUDE.md`, `settings.json`, `hooks`, and `scripts/logs`), and the diagnostics directory (`/tmp/retro2-diagnostics` by default). harness-retro has no telemetry of its own and sends nothing to its authors. It uses your own Claude quota, and each model call has a built-in spending cap of US$3 or US$5. Candidate tests run in a bubblewrap sandbox with network access turned off. Diagnosis starts from an empty filesystem and mounts only the project when that directory does not contain your home or harness, the harness files listed above, the diagnostics directory, the CLI's system libraries, a scratch directory, and one credential file. A file placed anywhere else in your home directory is not mounted. If the project directory is your home directory or is the harness directory, only the listed harness files from that tree are mounted. The Claude credential is mounted read-only under `CLAUDE_CONFIG_DIR` on the sandbox `/tmp`, not at its original path. Diagnosis, candidate generation, and apply each use that empty-root allow-list. The candidate stage mounts the worktree read-write and does not mount the rest of the home directory. Apply mounts the subject read-only, uses a scratch directory for writes, disables network, and does not start a model. Codex is disabled until a host-side credential broker ships (`docs/sandbox-allowlist.md#follow-up-credential-broker`). Selecting it fails closed, and no Codex `auth.json` is copied or mounted.
 
 **I run a small business and don't write code. Is this for me?**  
 Not directly: it is a developer tool for Linux. The idea still applies to any team using AI assistants: when the assistant gets something wrong, keep the evidence, test the fix, and let a person approve it before it becomes a rule. Share this repository with the engineer who runs your AI tools.

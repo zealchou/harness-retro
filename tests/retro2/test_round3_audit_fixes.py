@@ -169,7 +169,7 @@ class RoundThreeAuditFixes(unittest.TestCase):
             fixture.candidate(runner, patch="-one\n+broken\n")
             runner._uses_platform_sandbox = True
             failed_start = subprocess.CompletedProcess(["bwrap"], 1, "", "NETLINK_ROUTE: Operation not permitted")
-            with mock.patch.object(station_host, "run_restricted", return_value=failed_start):
+            with mock.patch.object(station_host, "run_allowlisted", return_value=failed_start):
                 result = runner.test_gate({})
             self.assertEqual(("NO_CHANGE", "test_infrastructure_error"), (result["status"], result["reason"]))
             ledger = runner.run_dir / "evidence-ledger.jsonl"
@@ -180,13 +180,23 @@ class RoundThreeAuditFixes(unittest.TestCase):
         completed = subprocess.CompletedProcess(["bwrap"], 0, "R2_CHILD_STARTED\nok", "")
         with mock.patch.object(host_exits.shutil, "which", return_value="/usr/bin/bwrap"), \
                 mock.patch.object(host_exits.subprocess, "run", side_effect=lambda argv, **kwargs: observed.update(argv=argv, env=kwargs["env"]) or completed):
-            result = host_exits.run_restricted(["echo", "ok"], Path.cwd(), env={"SECRET_TOKEN": "no", "PATH": "/bin", "LANG": "C"})
+            result = host_exits.run_allowlisted(
+                ["echo", "ok"], Path.cwd(), cwd=Path.cwd(), profile="apply",
+                subject_root=Path.cwd(),
+                env={
+                    "SECRET_TOKEN": "no", "SSH_AUTH_SOCK": "/tmp/agent.sock",
+                    "PATH": "/bin", "LANG": "C", "HOME": str(Path.home()),
+                },
+            )
         self.assertTrue(result.child_started)
         self.assertNotIn("SECRET_TOKEN", observed["env"])
+        self.assertNotIn("SSH_AUTH_SOCK", observed["env"])
         self.assertEqual("/bin", observed["env"]["PATH"])
-        for secret in (".ssh", ".aws", ".gnupg", ".config/gh", ".docker", ".kube", ".codex", ".claude"):
-            if (Path.home() / secret).is_dir():  # 不存在的路徑沒有東西可遮，且唯讀根上無法建掛載點
-                self.assertIn(str(Path.home() / secret), observed["argv"])
+        self.assertIn("--clearenv", observed["argv"])
+        self.assertNotIn(
+            ["--ro-bind", "/", "/"],
+            [observed["argv"][index:index + 3] for index in range(len(observed["argv"]) - 2)],
+        )
 
 
 if __name__ == "__main__":

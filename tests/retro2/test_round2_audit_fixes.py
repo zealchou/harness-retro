@@ -74,12 +74,23 @@ class RoundTwoAuditFixTests(unittest.TestCase):
             protected.write_text("safe\n", encoding="utf-8")
             script = (
                 "import pathlib,socket,sys; print('SANDBOX_STARTED'); "
-                "\ntry: pathlib.Path(sys.argv[1]).write_text('bad'); print('WRITE_OK')\n"
+                "p=pathlib.Path(sys.argv[1]); "
+                "print('ABSENT' if not p.exists() else 'PRESENT'); "
+                "\ntry:\n"
+                "    if not p.exists():\n"
+                "        raise OSError('not mounted')\n"
+                "    p.write_text('bad'); print('WRITE_OK')\n"
                 "except OSError: print('WRITE_DENIED')\n"
                 "\ntry: socket.create_connection(('1.1.1.1', 53), .1); print('NETWORK_OK')\n"
                 "except OSError: print('NETWORK_DENIED')"
             )
-            result = host_exits.run_restricted([sys.executable, "-B", "-c", script, str(protected)], writable)
+            subject = root / "subject"
+            subject.mkdir()
+            result = host_exits.run_allowlisted(
+                [sys.executable, "-B", "-c", script, str(protected)], writable,
+                cwd=subject, profile="apply", subject_root=subject, allow_network=False,
+                env={"HOME": str(Path.home()), "PATH": os.environ.get("PATH", "/usr/bin"), "LANG": "C"},
+            )
             # Some locked-down CI kernels prohibit creating a network namespace.
             # That is fail-closed (the child never starts); supported kernels must
             # prove both the sentinel and denied socket.

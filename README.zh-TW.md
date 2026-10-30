@@ -92,7 +92,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 - `PATH` 上有相容的 `claude` CLI；
 - Linux、可用的 `bwrap`，以及允許建立 user namespace 的核心設定。
 
-可選整合：hook-audit 腳本、受管專案索引、語意事故判斷器、Codex 後端與指定的模型憑證檔。找不到可選元件時，程式會記錄清楚的 skip／降級／錯誤原因，不會假裝執行成功。沒有 `bwrap` 時，安全敏感的隔離執行會 fail closed；需要真 namespace 的測試可附原因 skip，但斷言保留。
+可選整合：hook-audit 腳本、受管專案索引、語意事故判斷器。Codex 後端已停用，要等 host-side credential broker（`docs/sandbox-allowlist.md#follow-up-credential-broker`）。設 `RETRO2_MODEL_BACKEND=codex` 會 fail closed，不會複製或掛上 Codex 的 `auth.json`。診斷、候選與套用都用同一份空白根目錄允許清單：候選工作目錄可寫，家目錄的其他部分不會掛上。套用階段把受測目錄唯讀掛上、暫存目錄可寫、不開網路、不啟動模型。Claude 的登入檔仍以唯讀方式掛在沙盒 /tmp 的 CLAUDE_CONFIG_DIR，這是殘餘風險，等鑰匙代管上線後移除。找不到可選元件時，程式會記錄清楚的 skip／降級／錯誤原因，不會假裝執行成功。沒有 `bwrap` 時，安全敏感的隔離執行會 fail closed；需要真 namespace 的測試可附原因 skip，但斷言保留。
 
 ## 設定
 
@@ -103,7 +103,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 | `RETRO2_HOME` | `~/.claude` | host harness 根目錄 |
 | `RETRO2_STATE_DIR` | `$RETRO2_HOME/retro-2` | 執行狀態根目錄 |
 | `RETRO2_QUEUE_DIR` | `$RETRO2_STATE_DIR/queue` | queue 與壓力狀態 |
-| `RETRO2_RUNS_DIR` | `$RETRO2_STATE_DIR/runs` | run 產物與收據 |
+| `RETRO2_RUNS_DIR` | `$XDG_STATE_HOME/harness-retro/runs`（未設定時是 `~/.local/state/harness-retro/runs`） | run 產物、候選工作目錄與套用暫存。放在工具目錄外面，那些目錄才掛得上 |
 | `RETRO2_MAINTENANCE_DIR` | `$RETRO2_STATE_DIR/maintenance/manual` | 淘汰建議報告 |
 | `RETRO2_TRANSCRIPTS_DIR` | `$RETRO2_HOME/projects` | 預設逐字稿目錄 |
 | `RETRO2_USAGE_DATA_DIR` | `$RETRO2_HOME/usage-data` | 可選使用紀錄證據 |
@@ -115,11 +115,11 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 | `RETRO2_JUDGE_SCRIPT` | `$RETRO2_HOME/scripts/judge.py` | 可選機率判斷器 |
 | `RETRO2_INCIDENT_EVIDENCE_ROOT` | 倉庫／套件根目錄 | 相對事故證據基準 |
 | `RETRO2_CLAUDE_CREDENTIAL_FILE` | `$RETRO2_HOME/.credentials.json` | Claude 憑證唯讀掛載 |
-| `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | 可選 Codex 憑證唯讀掛載 |
+| `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | 未使用。Codex 已停用，這個檔不會被複製或掛上 |
 | `RETRO2_GATE_LOGS` | host log 與診斷目錄 | 以 `:` 分隔的證據路徑 |
 | `RETRO2_CLAUDE_COMMAND` | `claude` | Claude 執行命令 |
-| `RETRO2_CODEX_COMMAND` | `codex` | 可選 Codex 執行命令 |
-| `RETRO2_MODEL_BACKEND` | `claude` | 設為 `codex` 使用可選後端 |
+| `RETRO2_CODEX_COMMAND` | `codex` | Codex 停用期間不使用 |
+| `RETRO2_MODEL_BACKEND` | `claude` | 設為 `codex` 會 fail closed，直到 credential broker |
 | `RETRO2_QUEUE_ENABLED` | 未設定 | 明確啟用 hook 排入 |
 | `RETRO2_GAUGE_STATE_DIR` | `/tmp/retro2-context-state` | hook lock／狀態目錄 |
 | `RETRO2_CONTEXT_WINDOW` | `800000` | context gauge 分母 |
@@ -149,7 +149,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 skill 裝起來比較快，直接在 Claude Code 裡跑。harness-retro 要 Linux 和 bubblewrap，但每一種改法都先隔離測試，你的批准綁定在確切的補丁上，而且留有收據可以還原。詳見上方「跟 `/retro` 類 skill 有什麼不同」。
 
 **它會把我的程式碼或對話紀錄傳到別的地方嗎？要花多少錢？**  
-會，傳給你自己帳號下的 Claude。使用預設的 Claude 後端時，harness-retro 會把這段對話裡你最近打的最多 30 則訊息（每則最多 1,500 字）透過你自己的 `claude -p` 指令送給模型，模型也可以唯讀讀取你的專案、`~/.claude` 的一部分（`CLAUDE.md`、`settings.json`、`hooks` 和 `scripts/logs`），以及診斷目錄（預設是 `/tmp/retro2-diagnostics`），但不能修改。harness-retro 本身不回傳任何使用資料，也不會把資料送給作者。它用你自己的 Claude 額度，每次呼叫模型內建 3 或 5 美元的花費上限。候選改法的測試在 bubblewrap 沙盒裡進行，網路是關掉的。
+會，傳給你自己帳號下的 Claude。使用預設的 Claude 後端時，harness-retro 會把這段對話裡你最近打的最多 30 則訊息（每則最多 1,500 字）透過你自己的 `claude -p` 指令送給模型，模型也可以唯讀讀取你的專案、`~/.claude` 或 `RETRO2_HOME` 的一部分（`CLAUDE.md`、`settings.json`、`hooks` 和 `scripts/logs`），以及診斷目錄（預設是 `/tmp/retro2-diagnostics`），但不能修改。harness-retro 本身不回傳任何使用資料，也不會把資料送給作者。它用你自己的 Claude 額度，每次呼叫模型內建 3 或 5 美元的花費上限。候選改法的測試在 bubblewrap 沙盒裡進行，網路是關掉的。診斷從空的檔案系統開始，只掛上不含家目錄或工具目錄的專案、上面列出的工具檔、診斷目錄、CLI 的系統程式庫、一個暫存目錄，以及一份憑證檔。家目錄裡其他地方的檔案不會被掛上。若專案目錄就是家目錄或就是工具目錄，那棵樹裡掛上的只有列出的工具檔。Claude 憑證唯讀掛在沙盒 `/tmp` 的 `CLAUDE_CONFIG_DIR` 底下，不是原本的路徑。診斷、候選與套用都用這份空白根目錄允許清單。候選階段把工作目錄掛成可寫，家目錄的其他部分不會掛上。套用階段把受測目錄唯讀掛上、暫存目錄可寫、不開網路、不啟動模型。Codex 已停用，要等 host-side credential broker（`docs/sandbox-allowlist.md#follow-up-credential-broker`）。選了它會 fail closed，不會複製或掛上 Codex 的 `auth.json`。
 
 **我是中小企業老闆、不會寫程式，這個適合我嗎？**  
 不直接適合：這是給 Linux 開發者用的工具。但背後的做法任何用 AI 助手的團隊都用得上：AI 做錯時留下證據、先測試改法、由人批准後才變成規則。可以把這個專案轉給負責你們 AI 工具的工程師看。

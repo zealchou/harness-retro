@@ -19,7 +19,10 @@ import diagnosis_adapter  # noqa: E402
 import evidence_adapter  # noqa: E402
 import experience  # noqa: E402
 import filter_adapter  # noqa: E402
-from host_exits import GitWorktreeHost, HostExitError, run_apply_tests, run_restricted, validation_receipt  # noqa: E402
+from host_exits import (  # noqa: E402
+    CODEX_BACKEND_DISABLED, GitWorktreeHost, HostExitError, run_allowlisted, run_apply_tests,
+    validation_receipt,
+)
 import rejection_index  # noqa: E402
 from apply import transaction  # noqa: E402
 import config  # noqa: E402
@@ -131,15 +134,17 @@ def _test_evidence_summary(path):
 class PythonStationRunner:
     """Validate immutable ticket context, then call one existing part per station."""
     def __init__(self, ticket, runs_root, *, command=None, claude=None, codex=None):
+        if os.environ.get("RETRO2_MODEL_BACKEND", "").strip().lower() == "codex":
+            raise HostExitError(CODEX_BACKEND_DISABLED)
+        del codex  # accepted so older callers still construct; the backend is not started
         self.ticket = dict(ticket)
         self.runs_root = Path(runs_root).resolve()
         self.run_id = _run_id(self.ticket)
         self.command = command or self._command
         self._uses_platform_sandbox = command is None
         self.claude = claude or shutil.which(config.claude_command()[0])
-        self.codex = codex or shutil.which(config.codex_command()[0])
-        self.backend_key = "codex" if os.environ.get("RETRO2_MODEL_BACKEND", "").strip().lower() == "codex" else "claude"
-        self.model_backend = "codex/gpt-6-astra" if self.backend_key == "codex" else "Claude"
+        self.backend_key = "claude"
+        self.model_backend = "Claude"
         self.run_dir = self.runs_root / self.run_id
         self.host_root = ROOT.parent
         self.host_immutable = self.host_root / "retro2" / "immutable"
@@ -183,27 +188,6 @@ class PythonStationRunner:
         except subprocess.TimeoutExpired as error:
             return 124, error.stdout or "", error.stderr or "timeout"
 
-    @staticmethod
-    def _codex_usage(stdout):
-        """Read exact Codex JSON event counters; never estimate absent usage."""
-        for line in stdout.splitlines():
-            try:
-                event = json.loads(line)
-            except ValueError:
-                continue
-            usage = event.get("usage") if isinstance(event, dict) else None
-            if not isinstance(usage, dict):
-                continue
-            known = {key: value for key, value in usage.items()
-                     if key in {"input_tokens", "output_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"}
-                     and isinstance(value, int) and value >= 0}
-            if known:
-                return known
-            total = usage.get("total_tokens")
-            if isinstance(total, int) and total >= 0:
-                return {"input_tokens": total}
-        return None
-
     def _record_usage(self, usage, *, unknown):
         usage = usage or {}
         self.tokens_used += sum(usage.get(key, 0) for key in (
@@ -242,24 +226,18 @@ class PythonStationRunner:
         payload = "<external_data>" + json.dumps(
             {"kind": kind, "request": request}, ensure_ascii=False, sort_keys=True,
         ) + "</external_data>"
-        codex_io = None
-        if self.backend_key == "codex":
-            if not self.codex:
-                raise RuntimeError("codex executable unavailable")
-            output_root = Path(request.get("worktree") or self.run_dir)
-            output_root.mkdir(parents=True, exist_ok=True)
-            codex_io = Path(tempfile.mkdtemp(prefix=".codex-structured-", dir=output_root))
-            schema_path, output_path, empty_root = codex_io / "schema.json", codex_io / "message.json", codex_io / "empty"
-            schema_path.write_text(json.dumps(_strict_schema(schema), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-            empty_root.mkdir()
-            argv = [self.codex, "exec", "-m", "gpt-6-astra", "-c", "model_reasoning_effort=high", "--json",
-                    "--output-schema", str(schema_path), "-o", str(output_path), "-s", "read-only",
-                    "-C", str(self.repo if read_only_repo else empty_root)]
-            if read_only_repo:
-                argv.extend(["--add-dir", str(self.repo), "--add-dir", str(HOST_HARNESS / "hooks"),
-                             "--add-dir", str(HOST_HARNESS / "scripts/logs"), "--add-dir", str(config.DIAGNOSTICS_DIR)])
-            argv.append(TRUSTED_STATION_PROMPT + "\n" + payload)
-        else:
+        # The default run directory lives under the harness. Diagnosis keeps its
+        # writable files in a scratch directory that is not the repo, the harness,
+        # or an --add-dir, so a project that contains the harness cannot read them.
+        # Create it inside the try so a later failure still deletes it.
+        scratch = None
+        try:
+            if kind == "diagnosis" and self._uses_platform_sandbox:
+                scratch = tempfile.TemporaryDirectory(
+                    prefix="retro2-diagnosis-scratch-", dir=self._diagnosis_scratch_parent(),
+                )
+            if self.backend_key != "claude":
+                raise HostExitError(CODEX_BACKEND_DISABLED)
             if not self.claude:
                 raise RuntimeError("claude executable unavailable")
             # --add-dir accepts directories only, and --restricted file tools read
@@ -274,77 +252,54 @@ class PythonStationRunner:
                     "--no-session-persistence", "--output-format", "json",
                     "--json-schema", json.dumps(schema, ensure_ascii=False, separators=(",", ":")),
                     "--system-prompt", TRUSTED_STATION_PROMPT, payload]
-        scratch = None
-        try:
-            if kind in {"candidate", "diagnosis"} and self._uses_platform_sandbox:
+            if self._uses_platform_sandbox:
+                if kind not in {"candidate", "diagnosis"}:
+                    raise HostExitError(f"model stage is not allow-listed: {kind}/{self.backend_key}")
                 worktree = request.get("worktree")
                 if kind == "candidate" and not worktree:
                     raise RuntimeError("candidate worktree missing")
                 # Candidate generation may need the approved model endpoint.  Test
                 # subprocesses never inherit this exception (see _run_tests).
-                credential = config.CODEX_CREDENTIAL_FILE if self.backend_key == "codex" \
-                    else config.CLAUDE_CREDENTIAL_FILE
-                # The default run directory lives under the harness, which is an
-                # --add-dir. Diagnosis does not need that directory writable;
-                # give the CLI a scratch directory outside the read scope.
-                writable = worktree or self.run_dir
-                if kind == "diagnosis" and self.backend_key != "codex":
-                    scratch = tempfile.TemporaryDirectory(
-                        prefix="retro2-diagnosis-scratch-", dir=self._diagnosis_scratch_parent(),
+                credential = config.CLAUDE_CREDENTIAL_FILE
+                writable = scratch.name if scratch is not None else worktree
+                if kind == "diagnosis":
+                    harness_reads = tuple(
+                        path for path in HOST_HARNESS_READS if Path(path) != Path(config.DIAGNOSTICS_DIR)
                     )
-                    writable = scratch.name
-                isolated = run_restricted(
-                    argv, writable, cwd=worktree or self.repo, timeout=timeout, allow_network=True,
-                    readonly_roots=(self.repo, *HOST_HARNESS_READS) if kind == "diagnosis" else (),
-                    credential_paths=(credential,))  # relocated outside model read roots; harness stays masked
+                    isolated = run_allowlisted(
+                        argv, writable, cwd=self.repo, timeout=timeout, allow_network=True,
+                        profile="diagnosis", project_root=self.repo, harness_root=HOST_HARNESS,
+                        harness_reads=harness_reads, diagnostics=config.DIAGNOSTICS_DIR,
+                        credential_paths=(credential,))
+                else:
+                    # Candidate profile: the worktree is read-write. Harness files
+                    # are not mounted; their text is already in the prompt.
+                    isolated = run_allowlisted(
+                        argv, writable, cwd=writable, timeout=timeout, allow_network=True,
+                        profile="candidate", project_root=writable, harness_root=HOST_HARNESS,
+                        harness_reads=(), diagnostics=None,
+                        credential_paths=(credential,))
                 code, stdout, stderr = isolated.returncode, isolated.stdout, isolated.stderr
             else:
                 code, stdout, stderr = self.command(argv, cwd=self.repo if read_only_repo else None, timeout=timeout)
-        except Exception:
-            if codex_io is not None:
-                shutil.rmtree(codex_io, ignore_errors=True)
-            raise
-        finally:
-            if scratch is not None:
-                scratch.cleanup()
-        if code:
-            if codex_io is not None:
-                shutil.rmtree(codex_io, ignore_errors=True)
-            # codex --json 把錯誤寫在 stdout 事件裡；一併保留尾段，失敗原因才查得到
-            raise RuntimeError((stderr.strip() + "\n" + stdout[-1500:]).strip() or f"{kind} model failed")
-        if self.backend_key == "codex":
-            assert codex_io is not None
-            output_path = codex_io / "message.json"
-            try:
-                output = output_path.read_text(encoding="utf-8")
-            except FileNotFoundError as error:
-                shutil.rmtree(codex_io, ignore_errors=True)
-                raise RuntimeError("codex output missing") from error
-            if any(line.startswith("ERROR:") for line in (stdout + "\n" + stderr + "\n" + output).splitlines()):
-                shutil.rmtree(codex_io, ignore_errors=True)
-                raise RuntimeError("codex reported an error")
-            try:
-                result = json.loads(output)
-            except ValueError as error:
-                shutil.rmtree(codex_io, ignore_errors=True)
-                raise ValueError(f"{kind} model returned invalid JSON") from error
-            usage = self._codex_usage(stdout)
-            self._record_usage(usage, unknown=usage is None)
-            shutil.rmtree(codex_io, ignore_errors=True)
-        else:
+            if code:
+                raise RuntimeError((stderr.strip() + "\n" + stdout[-1500:]).strip() or f"{kind} model failed")
             wrapper = json.loads(stdout)
             usage = wrapper.get("usage") or {}
             # 快取讀取每回合都把整段上下文重算一次（多回合工具呼叫會灌到數十萬），只另記不計入總額
             self._record_usage(usage, unknown=False)
             result = wrapper.get("structured_output")
-        if self.tokens_used > MAX_ROUND_TOKENS:
-            raise TokenBudgetExceeded("round_token_budget_exceeded")
-        self.model_calls = getattr(self, "model_calls", 0) + 1
-        evidence_adapter._atomic_json(  # 留原始回覆，判不出時才查得到模型到底回了什麼
-            self.run_dir / "model-raw" / f"{self.model_calls:02d}-{kind}.json", {"structured_output": result})
-        if not isinstance(result, dict):
-            raise ValueError(f"{kind} model returned invalid JSON")
-        return result
+            if self.tokens_used > MAX_ROUND_TOKENS:
+                raise TokenBudgetExceeded("round_token_budget_exceeded")
+            self.model_calls = getattr(self, "model_calls", 0) + 1
+            evidence_adapter._atomic_json(  # 留原始回覆，判不出時才查得到模型到底回了什麼
+                self.run_dir / "model-raw" / f"{self.model_calls:02d}-{kind}.json", {"structured_output": result})
+            if not isinstance(result, dict):
+                raise ValueError(f"{kind} model returned invalid JSON")
+            return result
+        finally:
+            if scratch is not None:
+                scratch.cleanup()
     def _transcript_path(self):
         explicit = self.ticket.get("transcript_path")
         if explicit:
@@ -767,9 +722,9 @@ class PythonStationRunner:
         for argv in commands:
             if self._uses_platform_sandbox:
                 try:
-                    restricted = run_restricted(
-                        argv, root, cwd=root, timeout=300,
-                        git_metadata_roots=self._git_metadata_roots(root),
+                    restricted = run_allowlisted(
+                        argv, root, cwd=root, timeout=300, profile="apply",
+                        subject_root=root, allow_network=False,
                     )
                 except HostExitError as error:
                     return {"passed": False, "commands": commands, "results": records,
@@ -1110,7 +1065,7 @@ class PythonStationRunner:
         return None
 
     def _report(self, aliases, reason):
-        lines = ["# R2-LITE 候選報告", "", f"終態：`REQUIRES_HUMAN_APPROVAL`", "", f"第一個業務原因：`{reason}`", "", "## 隔離邊界", "", "候選若需模型端點會保有網路；已遮蔽已知憑證目錄，完整最小根檔案系統仍延後。", "", "## 候選"]
+        lines = ["# R2-LITE 候選報告", "", f"終態：`REQUIRES_HUMAN_APPROVAL`", "", f"第一個業務原因：`{reason}`", "", "## 隔離邊界", "", "診斷、候選與套用都從空白根目錄允許清單啟動。候選若需模型端點會保有網路。Codex 後端已停用，要等 host-side credential broker。", "", "## 候選"]
         for alias in aliases:
             patch = self.run_dir / "candidates" / alias / "candidate.patch"
             lines += [f"- {alias}: `{patch}`", f"  - 套用：`retro-2 apply --run {self.run_id} --candidate {alias} --approval-ref <maintainer-UUID>`"]
@@ -1119,11 +1074,13 @@ class PythonStationRunner:
 
 def maintenance_runner(kind, request):
     runner = PythonStationRunner.__new__(PythonStationRunner)
+    if os.environ.get("RETRO2_MODEL_BACKEND", "").strip().lower() == "codex":
+        raise HostExitError(CODEX_BACKEND_DISABLED)
     runner.command = PythonStationRunner._command
+    runner._uses_platform_sandbox = True
     runner.claude = shutil.which(config.claude_command()[0])
-    runner.codex = shutil.which(config.codex_command()[0])
-    runner.backend_key = "codex" if os.environ.get("RETRO2_MODEL_BACKEND", "").strip().lower() == "codex" else "claude"
-    runner.model_backend = "codex/gpt-6-astra" if runner.backend_key == "codex" else "Claude"
+    runner.backend_key = "claude"
+    runner.model_backend = "Claude"
     runner.tokens_used = 0
     runner.cache_read_tokens = 0
     runner.usage_unknown = False

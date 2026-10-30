@@ -68,6 +68,15 @@ class EvidenceAdapterTests(unittest.TestCase):
             self.assertEqual("EVIDENCE_OK", result["status"])
             self.assertEqual("未取得", result["insights"])
 
+    @unittest.skipUnless(
+        Path(os.environ["RETRO2_HOOK_AUDIT_SCRIPT"]).expanduser().is_file()
+        if os.environ.get("RETRO2_HOOK_AUDIT_SCRIPT")
+        else (
+            Path(os.environ.get("RETRO2_HOME", Path.home() / ".claude")).expanduser()
+            / "skills/hook-doctor/scripts/hook_audit.py"
+        ).is_file(),
+        "hook_audit.py is absent; collect_evidence skips that optional call and this test's command index does not apply",
+    )
     def test_external_instruction_is_untrusted_and_success_advances(self):
         adapter = load_module()
         with tempfile.TemporaryDirectory() as directory:

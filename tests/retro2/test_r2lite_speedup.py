@@ -293,5 +293,5 @@ class MaintenanceRunnerTests(unittest.TestCase):
                 mock.patch.object(station_host.shutil, "which", return_value="/usr/bin/true"), \
                 mock.patch.object(station_host.config, "MAINTENANCE_DIR", Path(directory) / "maintenance"), \
                 mock.patch.object(station_host.PythonStationRunner, "_command", staticmethod(lambda argv, **_: (0, reply, ""))):
-            result = station_host.maintenance_runner("prune", {})
-        self.assertEqual({"recommendations": []}, result)
+            with self.assertRaisesRegex(station_host.HostExitError, "not allow-listed"):
+                station_host.maintenance_runner("prune", {})
