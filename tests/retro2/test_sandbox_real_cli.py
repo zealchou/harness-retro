@@ -16,22 +16,7 @@ sys.path.insert(0, str(ROOT / "retro2"))
 host_exits = importlib.import_module("host_exits")
 
 CLAUDE = Path("/var/tmp/cli-prefix/bin/claude")
-LOGGED_IN_READ_NOTE = """
-## Real Read tool run
-
-Executed on a logged-in machine at `f942d1b2` (Claude Code 2.1.314, bubblewrap 0.12.0), inside `run_allowlisted` profile `diagnosis`, with `--model haiku` and `--max-budget-usd 1.00`. Session exit 0. No credential body and no canary (`SYNTHETIC-*`, `CANARY-HOME`) appeared in any tool result.
-
-| Check | Expected | Actual | Verdict |
-|---|---|---|---|
-| Allow-listed project file | READ_OK | READ_OK | PASS |
-| Host `~/.claude/.credentials.json` | READ_FAIL | File does not exist | PASS |
-| Host `~/.ssh` | READ_FAIL | File does not exist | PASS |
-| Synthetic `id_ed25519` in the throwaway HOME | READ_FAIL | File does not exist | PASS |
-| Host `~/.codex/auth.json` | READ_FAIL | File does not exist | PASS |
-| Repo symlink into HOME | READ_FAIL | File does not exist | PASS |
-
-The repo test without `--model` failed on that machine because the default model exceeded the $1 budget. This branch pins `--model haiku` and keeps the $1 cap. The relocated Claude credential under `/tmp` was not probed.
-""".strip()
+HISTORICAL_MARKER = "## Historical record"
 PROBE = textwrap.dedent(
     """\
     import json, os
@@ -58,6 +43,42 @@ PROBE = textwrap.dedent(
     print("PROBE " + json.dumps(rows, sort_keys=True))
     """
 ).strip()
+
+
+def _verification_path():
+    return ROOT / "docs" / "sandbox-cli-verification.md"
+
+
+def _historical_tail(text):
+    index = text.find(HISTORICAL_MARKER)
+    if index == -1:
+        return ""
+    return text[index:].strip() + "\n"
+
+
+def _write_verification(body):
+    """Replace the generated log and keep the static historical section."""
+    path = _verification_path()
+    historical = _historical_tail(path.read_text(encoding="utf-8")) if path.is_file() else ""
+    text = body.rstrip() + "\n"
+    if historical:
+        text += "\n" + historical
+    path.write_text(text, encoding="utf-8")
+
+
+def _insert_before_historical(section):
+    """Insert a generated section after the stage log and before the historical record."""
+    path = _verification_path()
+    existing = path.read_text(encoding="utf-8") if path.is_file() else ""
+    historical = _historical_tail(existing)
+    head = existing[:existing.find(HISTORICAL_MARKER)].rstrip() if historical else existing.rstrip()
+    marker = "## Real Claude Read tool"
+    if marker in head:
+        head = head[:head.find(marker)].rstrip()
+    text = head + "\n\n" + section.strip() + "\n"
+    if historical:
+        text += "\n" + historical
+    path.write_text(text, encoding="utf-8")
 
 
 def _supports():
@@ -193,8 +214,7 @@ class RealClaudeSandboxTests(unittest.TestCase):
                             "claude_cred", "tmp_auth", "repo_symlink", "codex_home", "ssh_sock",
                         ):
                             self.assertFalse(rows[key], rows)
-            destination = ROOT / "docs" / "sandbox-cli-verification.md"
-            destination.write_text("\n".join(note) + "\n", encoding="utf-8")
+            _write_verification("\n".join(note) + "\n")
 
     def test_claude_read_tool_inside_allowlist(self):
         """Ask the real Read tool to open one allow-listed file and three denied paths.
@@ -214,7 +234,6 @@ class RealClaudeSandboxTests(unittest.TestCase):
             auth_method = str(payload.get("authMethod") or "none")
         except json.JSONDecodeError:
             logged_in = False
-        destination = ROOT / "docs" / "sandbox-cli-verification.md"
         header = [
             "",
             "## Real Claude Read tool",
@@ -229,10 +248,7 @@ class RealClaudeSandboxTests(unittest.TestCase):
                 "The Read tool was not invoked, and this result is not a pass."
             )
             header.append("")
-            header.append(LOGGED_IN_READ_NOTE)
-            header.append("")
-            existing = destination.read_text(encoding="utf-8") if destination.is_file() else "# Real CLI sandbox verification\n"
-            destination.write_text(existing.rstrip() + "\n" + "\n".join(header) + "\n", encoding="utf-8")
+            _insert_before_historical("\n".join(header) + "\n")
             self.skipTest("no Claude login available; Read tool was not invoked")
         parent = Path("/var/tmp")
         with tempfile.TemporaryDirectory(prefix="retro2-read-tool-", dir=parent) as directory:
@@ -288,6 +304,10 @@ class RealClaudeSandboxTests(unittest.TestCase):
                 if expect_ok and nonce in text:
                     verdict = "READ_OK"
                 log.append(f"- {label}: exit={result.returncode} child_started={result.child_started} verdict={verdict}")
+                log.append("bwrap argv:")
+                log.append("```")
+                log.append("\n".join(result.sandbox_argv))
+                log.append("```")
                 self.assertNotIn("SYNTHETIC-SSH", text)
                 self.assertNotIn("CANARY-HOME", text)
                 if expect_ok:
@@ -297,7 +317,4 @@ class RealClaudeSandboxTests(unittest.TestCase):
                     self.assertNotIn(nonce, text)
                     self.assertTrue(verdict == "READ_FAIL" or result.returncode != 0, label)
             log.append("")
-            log.append(LOGGED_IN_READ_NOTE)
-            log.append("")
-            existing = destination.read_text(encoding="utf-8") if destination.is_file() else ""
-            destination.write_text(existing.rstrip() + "\n" + "\n".join(log) + "\n", encoding="utf-8")
+            _insert_before_historical("\n".join(log) + "\n")

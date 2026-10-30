@@ -66,20 +66,20 @@ usr/lib64
 --tmpfs
 /tmp
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/project
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/CLAUDE.md
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/CLAUDE.md
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/CLAUDE.md
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/CLAUDE.md
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/settings.json
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/settings.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/settings.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/settings.json
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/hooks
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/hooks
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/hooks
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/hooks
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/scripts/logs
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/scripts/logs
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/scripts/logs
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/scripts/logs
 --ro-bind
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
@@ -87,37 +87,37 @@ usr/lib64
 /exec-daemon/node
 /exec-daemon/node
 --dir
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/.credentials.json
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 PATH
 /exec-daemon:/usr/bin:/bin
 --setenv
 HOME
-/var/tmp/retro2-real-cli-il404rwq/home
+/var/tmp/retro2-real-cli-j_hosjlz/home
 --setenv
 LANG
 C
 --setenv
 CLAUDE_CONFIG_DIR
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --setenv
 CLAUDE_CREDENTIAL_FILE
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 RETRO2_DIAGNOSIS_SCRATCH
-/var/tmp/retro2-real-cli-il404rwq/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
 --bind
-/var/tmp/retro2-real-cli-il404rwq/scratch
-/var/tmp/retro2-real-cli-il404rwq/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
 --proc
 /proc
 --dev
 /dev
 --chdir
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --
 /bin/sh
 -c
@@ -186,20 +186,20 @@ usr/lib64
 --tmpfs
 /tmp
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/project
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/CLAUDE.md
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/CLAUDE.md
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/CLAUDE.md
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/CLAUDE.md
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/settings.json
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/settings.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/settings.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/settings.json
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/hooks
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/hooks
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/hooks
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/hooks
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/scripts/logs
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/scripts/logs
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/scripts/logs
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/scripts/logs
 --ro-bind
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
@@ -207,37 +207,37 @@ usr/lib64
 /exec-daemon/node
 /exec-daemon/node
 --dir
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/.credentials.json
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 PATH
 /exec-daemon:/usr/bin:/bin
 --setenv
 HOME
-/var/tmp/retro2-real-cli-il404rwq/home
+/var/tmp/retro2-real-cli-j_hosjlz/home
 --setenv
 LANG
 C
 --setenv
 CLAUDE_CONFIG_DIR
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --setenv
 CLAUDE_CREDENTIAL_FILE
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 RETRO2_DIAGNOSIS_SCRATCH
-/var/tmp/retro2-real-cli-il404rwq/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
 --bind
-/var/tmp/retro2-real-cli-il404rwq/scratch
-/var/tmp/retro2-real-cli-il404rwq/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
 --proc
 /proc
 --dev
 /dev
 --chdir
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --
 /bin/sh
 -c
@@ -253,7 +253,7 @@ try:
     leaked = link.read_text(encoding="utf-8")
 except OSError:
     leaked = ""
-tmp_auth = Path("/tmp/retro2-fake-auth-2de469cb5f12")
+tmp_auth = Path("/tmp/retro2-fake-auth-ba8bb33124fe")
 rows = {
     "home_canary": (home / "canary.txt").is_file(),
     "bash_history": (home / ".bash_history").is_file(),
@@ -334,37 +334,37 @@ usr/lib64
 /exec-daemon/node
 /exec-daemon/node
 --dir
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/.credentials.json
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 PATH
 /exec-daemon:/usr/bin:/bin
 --setenv
 HOME
-/var/tmp/retro2-real-cli-il404rwq/home
+/var/tmp/retro2-real-cli-j_hosjlz/home
 --setenv
 LANG
 C
 --setenv
 CLAUDE_CONFIG_DIR
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --setenv
 CLAUDE_CREDENTIAL_FILE
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 RETRO2_DIAGNOSIS_SCRATCH
-/var/tmp/retro2-real-cli-il404rwq/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
 --bind
-/var/tmp/retro2-real-cli-il404rwq/worktree
-/var/tmp/retro2-real-cli-il404rwq/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
 --proc
 /proc
 --dev
 /dev
 --chdir
-/var/tmp/retro2-real-cli-il404rwq/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
 --
 /bin/sh
 -c
@@ -439,37 +439,37 @@ usr/lib64
 /exec-daemon/node
 /exec-daemon/node
 --dir
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/home/.claude/.credentials.json
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/var/tmp/retro2-real-cli-j_hosjlz/home/.claude/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 PATH
 /exec-daemon:/usr/bin:/bin
 --setenv
 HOME
-/var/tmp/retro2-real-cli-il404rwq/home
+/var/tmp/retro2-real-cli-j_hosjlz/home
 --setenv
 LANG
 C
 --setenv
 CLAUDE_CONFIG_DIR
-/tmp/retro2-claude-auth-c9ff1bed42f32427
+/tmp/retro2-claude-auth-d36064a5053a5d43
 --setenv
 CLAUDE_CREDENTIAL_FILE
-/tmp/retro2-claude-auth-c9ff1bed42f32427/.credentials.json
+/tmp/retro2-claude-auth-d36064a5053a5d43/.credentials.json
 --setenv
 RETRO2_DIAGNOSIS_SCRATCH
-/var/tmp/retro2-real-cli-il404rwq/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
 --bind
-/var/tmp/retro2-real-cli-il404rwq/worktree
-/var/tmp/retro2-real-cli-il404rwq/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
 --proc
 /proc
 --dev
 /dev
 --chdir
-/var/tmp/retro2-real-cli-il404rwq/worktree
+/var/tmp/retro2-real-cli-j_hosjlz/worktree
 --
 /bin/sh
 -c
@@ -485,7 +485,7 @@ try:
     leaked = link.read_text(encoding="utf-8")
 except OSError:
     leaked = ""
-tmp_auth = Path("/tmp/retro2-fake-auth-2de469cb5f12")
+tmp_auth = Path("/tmp/retro2-fake-auth-ba8bb33124fe")
 rows = {
     "home_canary": (home / "canary.txt").is_file(),
     "bash_history": (home / ".bash_history").is_file(),
@@ -559,8 +559,8 @@ usr/lib64
 --tmpfs
 /tmp
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/project
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --ro-bind
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
@@ -572,19 +572,19 @@ PATH
 /exec-daemon:/usr/bin:/bin
 --setenv
 HOME
-/var/tmp/retro2-real-cli-il404rwq/home
+/var/tmp/retro2-real-cli-j_hosjlz/home
 --setenv
 LANG
 C
 --bind
-/var/tmp/retro2-real-cli-il404rwq/scratch
-/var/tmp/retro2-real-cli-il404rwq/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
 --proc
 /proc
 --dev
 /dev
 --chdir
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --
 /bin/sh
 -c
@@ -652,8 +652,8 @@ usr/lib64
 --tmpfs
 /tmp
 --ro-bind
-/var/tmp/retro2-real-cli-il404rwq/project
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --ro-bind
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
 /var/tmp/cli-prefix/lib/node_modules/@anthropic-ai/claude-code
@@ -665,19 +665,19 @@ PATH
 /exec-daemon:/usr/bin:/bin
 --setenv
 HOME
-/var/tmp/retro2-real-cli-il404rwq/home
+/var/tmp/retro2-real-cli-j_hosjlz/home
 --setenv
 LANG
 C
 --bind
-/var/tmp/retro2-real-cli-il404rwq/scratch
-/var/tmp/retro2-real-cli-il404rwq/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
+/var/tmp/retro2-real-cli-j_hosjlz/scratch
 --proc
 /proc
 --dev
 /dev
 --chdir
-/var/tmp/retro2-real-cli-il404rwq/project
+/var/tmp/retro2-real-cli-j_hosjlz/project
 --
 /bin/sh
 -c
@@ -693,7 +693,7 @@ try:
     leaked = link.read_text(encoding="utf-8")
 except OSError:
     leaked = ""
-tmp_auth = Path("/tmp/retro2-fake-auth-2de469cb5f12")
+tmp_auth = Path("/tmp/retro2-fake-auth-ba8bb33124fe")
 rows = {
     "home_canary": (home / "canary.txt").is_file(),
     "bash_history": (home / ".bash_history").is_file(),
@@ -720,7 +720,9 @@ No credential file body is recorded.
 
 SKIPPED: no Claude login is available in this VM. The Read tool was not invoked, and this result is not a pass.
 
-## Real Read tool run
+## Historical record
+
+This section is a static record of one logged-in run. The test does not rewrite it.
 
 Executed on a logged-in machine at `f942d1b2` (Claude Code 2.1.314, bubblewrap 0.12.0), inside `run_allowlisted` profile `diagnosis`, with `--model haiku` and `--max-budget-usd 1.00`. Session exit 0. No credential body and no canary (`SYNTHETIC-*`, `CANARY-HOME`) appeared in any tool result.
 
@@ -734,4 +736,3 @@ Executed on a logged-in machine at `f942d1b2` (Claude Code 2.1.314, bubblewrap 0
 | Repo symlink into HOME | READ_FAIL | File does not exist | PASS |
 
 The repo test without `--model` failed on that machine because the default model exceeded the $1 budget. This branch pins `--model haiku` and keeps the $1 cap. The relocated Claude credential under `/tmp` was not probed.
-

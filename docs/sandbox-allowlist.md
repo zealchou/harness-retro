@@ -8,7 +8,7 @@ Diagnosis, candidate generation, and apply do not start from the host filesystem
 |---|---|
 | Diagnosis | `run_allowlisted` profile `diagnosis` (this page). |
 | Candidate generation | `run_allowlisted` profile `candidate`. The worktree is read-write. Harness files are not mounted; their text is already in the prompt. The Claude credential is the relocated `/tmp` file. |
-| Apply / test commands | `run_allowlisted` profile `apply`. The subject is read-only, the scratch directory is read-write, network is off, and no model CLI and no credential file are mounted. |
+| Apply / test commands | `run_allowlisted` profile `apply`. Formal apply keeps the subject read-only and `apply-sandbox/<label>` read-write. The candidate test worktree (`test-worktrees/<alias>`) is both the subject and the writable root, so that checkout is writable. Network is off. No model CLI and no credential file are mounted. |
 
 There is no Codex column. `RETRO2_MODEL_BACKEND=codex` raises `Codex backend is disabled until the host-side credential broker ships` before a sandbox is built.
 

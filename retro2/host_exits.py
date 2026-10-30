@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import stat
@@ -129,7 +130,13 @@ def _forbidden_mount(path, home, harness, *, named_ok=False):
 
 
 def _private_auth_dir(prefix, visible, namespace=None):
-    """A /tmp directory that is not inside a path the model is allowed to read."""
+    """A /tmp directory that is not inside a path the model is allowed to read.
+
+    ``namespace``, when set, must be 16 lowercase hex characters. It is only a
+    directory name on the sandbox tmpfs. A slash or any other character is rejected.
+    """
+    if namespace is not None and re.fullmatch(r"[0-9a-f]{16}", namespace) is None:
+        raise HostExitError("credential namespace must be 16 lowercase hex characters")
     dest_dir = Path("/tmp") / (prefix + (namespace or secrets.token_hex(8)))
     visible = [_absolute(path) for path in visible]
     if any(dest_dir == path or _inside(dest_dir, path) or _inside(path, dest_dir) for path in visible):

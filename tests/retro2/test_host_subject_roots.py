@@ -565,6 +565,33 @@ class HostSubjectRootTests(unittest.TestCase):
                 "codex_home": False,
             }, rows)
 
+    def test_credential_namespace_must_be_16_lowercase_hex(self):
+        with self.assertRaisesRegex(host_exits.HostExitError, "16 lowercase hex"):
+            host_exits._private_auth_dir("retro2-claude-auth-", [], namespace="../tmp")
+        with self.assertRaisesRegex(host_exits.HostExitError, "16 lowercase hex"):
+            host_exits._private_auth_dir("retro2-claude-auth-", [], namespace="0123456789ABCDEF")
+        with self.assertRaisesRegex(host_exits.HostExitError, "16 lowercase hex"):
+            host_exits._private_auth_dir("retro2-claude-auth-", [], namespace="abc")
+        dest = host_exits._private_auth_dir("retro2-claude-auth-", [], namespace="0123456789abcdef")
+        self.assertEqual(dest, Path("/tmp/retro2-claude-auth-0123456789abcdef"))
+        with self._outside_tmp("retro2-namespace-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            home.mkdir()
+            harness = home / ".claude"
+            harness.mkdir()
+            credential = harness / ".credentials.json"
+            credential.write_text("SYNTHETIC-MARKER\n", encoding="utf-8")
+            writable = root / "work"
+            writable.mkdir()
+            with self.assertRaisesRegex(host_exits.HostExitError, "16 lowercase hex"):
+                host_exits.build_allowlisted_argv(
+                    ["true"], writable, cwd=writable, profile="diagnosis",
+                    project_root=writable, harness_root=harness,
+                    credential_paths=(credential,), credential_namespace="not/hex",
+                    env={"HOME": str(home), "PATH": "/bin", "LANG": "C"},
+                )
+
     def test_credential_mount_uses_add_dir_for_overlap(self):
         with self._outside_tmp("retro2-overlap-") as directory:
             root = Path(directory)
