@@ -1,6 +1,6 @@
 # harness-retro
 
-![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5) ![Status](https://img.shields.io/badge/status-maintainer%20review-orange)
+[![CI](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml/badge.svg)](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5) ![Status](https://img.shields.io/badge/status-maintainer%20review-orange)
 
 **harness-retro is a safety-gated retrospective workflow that lets Claude Code find mistakes in its own conversation history, propose three fixes, test them in isolation, pass four reviews, and wait for a human before changing the real repository.**
 
