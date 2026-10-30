@@ -242,11 +242,19 @@ class PythonStationRunner:
         payload = "<external_data>" + json.dumps(
             {"kind": kind, "request": request}, ensure_ascii=False, sort_keys=True,
         ) + "</external_data>"
+        # The default run directory lives under the harness. Diagnosis keeps its
+        # writable files in a scratch directory that is not the repo, the harness,
+        # or an --add-dir, so a project that contains the harness cannot read them.
+        scratch = None
+        if kind == "diagnosis" and self._uses_platform_sandbox:
+            scratch = tempfile.TemporaryDirectory(
+                prefix="retro2-diagnosis-scratch-", dir=self._diagnosis_scratch_parent(),
+            )
         codex_io = None
         if self.backend_key == "codex":
             if not self.codex:
                 raise RuntimeError("codex executable unavailable")
-            output_root = Path(request.get("worktree") or self.run_dir)
+            output_root = Path(scratch.name) if scratch is not None else Path(request.get("worktree") or self.run_dir)
             output_root.mkdir(parents=True, exist_ok=True)
             codex_io = Path(tempfile.mkdtemp(prefix=".codex-structured-", dir=output_root))
             schema_path, output_path, empty_root = codex_io / "schema.json", codex_io / "message.json", codex_io / "empty"
@@ -274,7 +282,6 @@ class PythonStationRunner:
                     "--no-session-persistence", "--output-format", "json",
                     "--json-schema", json.dumps(schema, ensure_ascii=False, separators=(",", ":")),
                     "--system-prompt", TRUSTED_STATION_PROMPT, payload]
-        scratch = None
         try:
             if kind in {"candidate", "diagnosis"} and self._uses_platform_sandbox:
                 worktree = request.get("worktree")
@@ -284,15 +291,7 @@ class PythonStationRunner:
                 # subprocesses never inherit this exception (see _run_tests).
                 credential = config.CODEX_CREDENTIAL_FILE if self.backend_key == "codex" \
                     else config.CLAUDE_CREDENTIAL_FILE
-                # The default run directory lives under the harness, which is an
-                # --add-dir. Diagnosis does not need that directory writable;
-                # give the CLI a scratch directory outside the read scope.
-                writable = worktree or self.run_dir
-                if kind == "diagnosis" and self.backend_key != "codex":
-                    scratch = tempfile.TemporaryDirectory(
-                        prefix="retro2-diagnosis-scratch-", dir=self._diagnosis_scratch_parent(),
-                    )
-                    writable = scratch.name
+                writable = scratch.name if scratch is not None else (worktree or self.run_dir)
                 isolated = run_restricted(
                     argv, writable, cwd=worktree or self.repo, timeout=timeout, allow_network=True,
                     readonly_roots=(self.repo, *HOST_HARNESS_READS) if kind == "diagnosis" else (),
@@ -303,48 +302,51 @@ class PythonStationRunner:
         except Exception:
             if codex_io is not None:
                 shutil.rmtree(codex_io, ignore_errors=True)
+            if scratch is not None:
+                scratch.cleanup()
             raise
+        try:
+            if code:
+                if codex_io is not None:
+                    shutil.rmtree(codex_io, ignore_errors=True)
+                # codex --json 把錯誤寫在 stdout 事件裡；一併保留尾段，失敗原因才查得到
+                raise RuntimeError((stderr.strip() + "\n" + stdout[-1500:]).strip() or f"{kind} model failed")
+            if self.backend_key == "codex":
+                assert codex_io is not None
+                output_path = codex_io / "message.json"
+                try:
+                    output = output_path.read_text(encoding="utf-8")
+                except FileNotFoundError as error:
+                    shutil.rmtree(codex_io, ignore_errors=True)
+                    raise RuntimeError("codex output missing") from error
+                if any(line.startswith("ERROR:") for line in (stdout + "\n" + stderr + "\n" + output).splitlines()):
+                    shutil.rmtree(codex_io, ignore_errors=True)
+                    raise RuntimeError("codex reported an error")
+                try:
+                    result = json.loads(output)
+                except ValueError as error:
+                    shutil.rmtree(codex_io, ignore_errors=True)
+                    raise ValueError(f"{kind} model returned invalid JSON") from error
+                usage = self._codex_usage(stdout)
+                self._record_usage(usage, unknown=usage is None)
+                shutil.rmtree(codex_io, ignore_errors=True)
+            else:
+                wrapper = json.loads(stdout)
+                usage = wrapper.get("usage") or {}
+                # 快取讀取每回合都把整段上下文重算一次（多回合工具呼叫會灌到數十萬），只另記不計入總額
+                self._record_usage(usage, unknown=False)
+                result = wrapper.get("structured_output")
+            if self.tokens_used > MAX_ROUND_TOKENS:
+                raise TokenBudgetExceeded("round_token_budget_exceeded")
+            self.model_calls = getattr(self, "model_calls", 0) + 1
+            evidence_adapter._atomic_json(  # 留原始回覆，判不出時才查得到模型到底回了什麼
+                self.run_dir / "model-raw" / f"{self.model_calls:02d}-{kind}.json", {"structured_output": result})
+            if not isinstance(result, dict):
+                raise ValueError(f"{kind} model returned invalid JSON")
+            return result
         finally:
             if scratch is not None:
                 scratch.cleanup()
-        if code:
-            if codex_io is not None:
-                shutil.rmtree(codex_io, ignore_errors=True)
-            # codex --json 把錯誤寫在 stdout 事件裡；一併保留尾段，失敗原因才查得到
-            raise RuntimeError((stderr.strip() + "\n" + stdout[-1500:]).strip() or f"{kind} model failed")
-        if self.backend_key == "codex":
-            assert codex_io is not None
-            output_path = codex_io / "message.json"
-            try:
-                output = output_path.read_text(encoding="utf-8")
-            except FileNotFoundError as error:
-                shutil.rmtree(codex_io, ignore_errors=True)
-                raise RuntimeError("codex output missing") from error
-            if any(line.startswith("ERROR:") for line in (stdout + "\n" + stderr + "\n" + output).splitlines()):
-                shutil.rmtree(codex_io, ignore_errors=True)
-                raise RuntimeError("codex reported an error")
-            try:
-                result = json.loads(output)
-            except ValueError as error:
-                shutil.rmtree(codex_io, ignore_errors=True)
-                raise ValueError(f"{kind} model returned invalid JSON") from error
-            usage = self._codex_usage(stdout)
-            self._record_usage(usage, unknown=usage is None)
-            shutil.rmtree(codex_io, ignore_errors=True)
-        else:
-            wrapper = json.loads(stdout)
-            usage = wrapper.get("usage") or {}
-            # 快取讀取每回合都把整段上下文重算一次（多回合工具呼叫會灌到數十萬），只另記不計入總額
-            self._record_usage(usage, unknown=False)
-            result = wrapper.get("structured_output")
-        if self.tokens_used > MAX_ROUND_TOKENS:
-            raise TokenBudgetExceeded("round_token_budget_exceeded")
-        self.model_calls = getattr(self, "model_calls", 0) + 1
-        evidence_adapter._atomic_json(  # 留原始回覆，判不出時才查得到模型到底回了什麼
-            self.run_dir / "model-raw" / f"{self.model_calls:02d}-{kind}.json", {"structured_output": result})
-        if not isinstance(result, dict):
-            raise ValueError(f"{kind} model returned invalid JSON")
-        return result
     def _transcript_path(self):
         explicit = self.ticket.get("transcript_path")
         if explicit:

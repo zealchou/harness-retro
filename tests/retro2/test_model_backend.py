@@ -102,6 +102,9 @@ class ModelBackendTests(unittest.TestCase):
             credentials = restricted.call_args.kwargs["credential_paths"]
             self.assertEqual(1, len(credentials))
             self.assertTrue(str(credentials[0]).endswith(".codex/auth.json"))
+            writable = Path(restricted.call_args.args[1]).resolve()
+            self.assertFalse(writable.is_relative_to(runner.run_dir.resolve()))
+            self.assertFalse(writable.is_relative_to(runner.runs_root.resolve()))
 
     def test_astra_report_names_the_backend_and_states_claude_cli_was_not_used(self):
         with tempfile.TemporaryDirectory() as directory:

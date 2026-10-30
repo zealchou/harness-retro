@@ -90,6 +90,7 @@ diagnostics = Path(expect["diagnostics"]) if expect.get("diagnostics") else None
 statuses.append(
     "DIAGNOSTICS_VISIBLE" if diagnostics is not None and (diagnostics / "visible.txt").is_file() else "DIAGNOSTICS_MISSING"
 )
+statuses.append("REPO_READABLE" if (cwd / "repo-visible.txt").is_file() else "REPO_MISSING")
 leaked = False
 if marker:
     for root in (cwd, *dirs):
@@ -214,15 +215,29 @@ class HostSubjectRootTests(unittest.TestCase):
         credential.write_text(marker, encoding="utf-8")
         return credential
 
-    def _assert_read_scope(self, *, home, harness, credential, marker):
-        """Run diagnosis in a sandbox whose harness is not under /tmp."""
-        base = home.parent
-        subject = self._subject(base)
-        diagnostics = base / "diagnostics"
+    def _git_repo(self, repo):
+        repo.mkdir(parents=True, exist_ok=True)
+        (repo / "docs").mkdir(exist_ok=True)
+        (repo / "docs/guide.md").write_text("before\n", encoding="utf-8")
+        (repo / "repo-visible.txt").write_text("project\n", encoding="utf-8")
+        if not (repo / ".git").is_dir():
+            git(repo, "init", "-q")
+            git(repo, "config", "user.email", "test@example.invalid")
+            git(repo, "config", "user.name", "test")
+        git(repo, "add", "docs", "repo-visible.txt")
+        git(repo, "commit", "-qm", "baseline")
+        return repo
+
+    def _assert_read_scope(self, *, home, harness, credential, marker, repo):
+        """Run diagnosis with the harness outside /tmp and the repo at `repo`."""
+        self._git_repo(repo)
+        diagnostics = repo.parent / ("diagnostics-" + repo.name)
+        if diagnostics == harness or diagnostics.is_relative_to(harness):
+            diagnostics = repo.parent.parent / ("diagnostics-" + repo.name)
         diagnostics.mkdir()
         (diagnostics / "visible.txt").write_text("diag\n", encoding="utf-8")
         runs = harness / "retro-2" / "runs"
-        checker = subject / "check_read_scope.py"
+        checker = repo / "check_read_scope.py"
         checker.write_text(READ_SCOPE_CHECKER, encoding="utf-8")
         checker.chmod(0o755)
         hidden = [
@@ -235,13 +250,13 @@ class HostSubjectRootTests(unittest.TestCase):
         ]
         ticket = {
             "schema_version": 1, "idempotency_key": "read-scope-" + harness.name,
-            "controller_entry": "retro2/controller/run.py", "repo_root": str(subject),
+            "controller_entry": "retro2/controller/run.py", "repo_root": str(repo),
         }
         runner = station_host.PythonStationRunner(ticket, runs, claude=str(checker))
         runner.run_dir.mkdir(parents=True)
         (runner.run_dir / "leak.txt").write_text(marker, encoding="utf-8")
         hidden.append(runner.run_dir / "leak.txt")
-        (subject / "scope-expect.json").write_text(json.dumps({
+        (repo / "scope-expect.json").write_text(json.dumps({
             "hidden": [str(path) for path in hidden],
             "run_file": str(runner.run_dir / "leak.txt"),
             "diagnostics": str(diagnostics),
@@ -261,7 +276,7 @@ class HostSubjectRootTests(unittest.TestCase):
             "AUTH_READABLE", "AUTH_READONLY", "SCOPE_DENIES_AUTH", "HARNESS_IS_READ_ROOT",
             "RULES_READABLE", "SETTINGS_READABLE", "HOOKS_DIR", "LOGS_DIR",
             "HARNESS_CRED_ABSENT", "HIDDEN_ABSENT", "RUN_ABSENT", "DIAGNOSTICS_VISIBLE",
-            "MARKER_CONTAINED",
+            "REPO_READABLE", "MARKER_CONTAINED",
         ], result["statuses"])
         self.assertFalse(str(runner.run_dir).startswith("/tmp/"))
         self.assertFalse(str(harness).startswith("/tmp/"))
@@ -274,7 +289,35 @@ class HostSubjectRootTests(unittest.TestCase):
             harness = home / ".claude"
             marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
             credential = self._fill_private_tree(harness, marker)
-            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker)
+            # Repo nested inside $HOME, beside ~/.claude. The default runs directory
+            # under the harness is in the hidden set.
+            self._assert_read_scope(
+                home=home, harness=harness, credential=credential, marker=marker,
+                repo=home / "project",
+            )
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_diagnosis_read_scope_when_repo_is_home(self):
+        with self._outside_tmp("retro2-repo-is-home-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            harness = home / ".claude"
+            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
+            credential = self._fill_private_tree(harness, marker)
+            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker, repo=home)
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_diagnosis_read_scope_when_repo_contains_home_claude(self):
+        with self._outside_tmp("retro2-repo-contains-claude-") as directory:
+            root = Path(directory)
+            home = root / "nest" / "home"
+            harness = home / ".claude"
+            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
+            credential = self._fill_private_tree(harness, marker)
+            self._assert_read_scope(
+                home=home, harness=harness, credential=credential, marker=marker,
+                repo=root / "nest",
+            )
 
     @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
     def test_diagnosis_read_scope_masks_relocated_retro2_home(self):
@@ -285,19 +328,44 @@ class HostSubjectRootTests(unittest.TestCase):
             original.mkdir(parents=True)
             marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
             (original / ".credentials.json").write_text(marker, encoding="utf-8")
-            harness = root / "moved-harness"
+            repo = root / "project"
+            harness = repo / "harness"
             credential = self._fill_private_tree(harness, marker)
-            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker)
+            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker, repo=repo)
 
-    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
-    def test_diagnosis_read_scope_hides_default_runs_root(self):
-        with self._outside_tmp("retro2-default-runs-") as directory:
+    def test_masks_follow_a_parent_repo_bind(self):
+        with self._outside_tmp("retro2-mask-order-") as directory:
             root = Path(directory)
             home = root / "home"
             harness = home / ".claude"
-            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
-            credential = self._fill_private_tree(harness, marker)
-            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker)
+            harness.mkdir(parents=True)
+            credential = harness / ".credentials.json"
+            credential.write_text("SYNTHETIC-MARKER\n", encoding="utf-8")
+            writable = root / "work"
+            writable.mkdir()
+            completed = subprocess.CompletedProcess(["bwrap"], 0, "R2_CHILD_STARTED\nok", "")
+            with mock.patch.object(host_exits.config, "RETRO2_HOME", harness), \
+                    mock.patch.object(host_exits.shutil, "which", return_value="/usr/bin/bwrap"), \
+                    mock.patch.object(host_exits.subprocess, "run", return_value=completed) as run:
+                host_exits.run_restricted(
+                    ["true"], writable, cwd=home, readonly_roots=(home,),
+                    credential_paths=(credential,), env={"HOME": str(home), "PATH": "/bin"},
+                )
+            argv = run.call_args.args[0]
+
+            def mount_at(flag, dest, slot):
+                dest = str(Path(dest).resolve())
+                return [
+                    index for index in range(len(argv) - slot)
+                    if argv[index] == flag and str(Path(argv[index + slot]).resolve()) == dest
+                ]
+
+            repo_binds = mount_at("--ro-bind", home, 2)
+            harness_masks = mount_at("--tmpfs", harness, 1)
+            self.assertTrue(repo_binds)
+            self.assertTrue(harness_masks)
+            self.assertGreater(harness_masks[-1], repo_binds[0])
+            self.assertEqual(mount_at("--ro-bind", credential, 2), [])
 
     def test_credential_mount_uses_add_dir_for_overlap(self):
         with self._outside_tmp("retro2-overlap-") as directory:

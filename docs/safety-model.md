@@ -45,7 +45,7 @@ The rejection index skips repeated mechanical work only when the subject, baseli
 
 ## Isolation guarantee
 
-On supported Linux hosts, bubblewrap exposes one writable worktree, selected read-only roots, `/proc`, and `/dev`. It masks `$HOME/.claude` and `RETRO2_HOME`, then remounts only the diagnosis allowlist (`CLAUDE.md`, `settings.json`, `hooks`, and `scripts/logs`) plus the repository and the diagnostics directory. A Claude credential file is rebound read-only under `CLAUDE_CONFIG_DIR`, outside the directories given to the model's file tools, so the CLI can authenticate. The diagnosis scratch directory is outside those directories as well. Tests do not receive model network access.
+On supported Linux hosts, bubblewrap exposes one writable worktree, selected read-only roots, `/proc`, and `/dev`. After those binds it masks `$HOME/.claude` and `RETRO2_HOME` again, so a project directory that contains either one cannot uncover them, then remounts only the diagnosis allowlist (`CLAUDE.md`, `settings.json`, `hooks`, and `scripts/logs`) plus paths outside the masks. A Claude credential file is rebound read-only under `CLAUDE_CONFIG_DIR`, outside the directories given to the model's file tools, so the CLI can authenticate. The diagnosis scratch directory is outside those directories as well. Tests do not receive model network access.
 
 If bubblewrap or the required namespace is unavailable, safety-sensitive execution stops. A test may skip because the host cannot demonstrate the isolation primitive, but production execution must not silently fall back to an unrestricted subprocess.
 

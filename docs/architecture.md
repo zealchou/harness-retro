@@ -69,7 +69,7 @@ The optional integrations—hook audit, managed-project list, probability judge,
 
 ## Isolation
 
-Candidate generation and qualification use disposable Git worktrees. On Linux, `host_exits.run_restricted` uses bubblewrap to expose named read-only roots, one writable worktree, minimal devices, and an isolated network namespace unless a model call explicitly needs its endpoint. Diagnosis masks `$HOME/.claude` and `RETRO2_HOME`, remounts only the allowlisted harness paths, and keeps the Claude credential file and the scratch directory outside the model's read directories. Missing bubblewrap fails closed.
+Candidate generation and qualification use disposable Git worktrees. On Linux, `host_exits.run_restricted` uses bubblewrap to expose named read-only roots, one writable worktree, minimal devices, and an isolated network namespace unless a model call explicitly needs its endpoint. Diagnosis bind-mounts the project, then masks `$HOME/.claude` and `RETRO2_HOME` again so a project that contains either path cannot uncover it. Only the allowlisted harness paths are remounted. The Claude credential file and the scratch directory stay outside the model's read directories. Missing bubblewrap fails closed.
 
 ## Application and rollback
 

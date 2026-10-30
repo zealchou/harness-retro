@@ -25,15 +25,27 @@ SECRET_DIRECTORIES = (".ssh", ".aws", ".gnupg", ".config/gh", ".docker", ".kube"
 CHILD_SENTINEL = "R2_CHILD_STARTED\n"
 
 
-def _cover_with_tmpfs(command, path, covered):
-    """Hide one existing directory. Skip paths an earlier tmpfs already covers."""
+def _mask_directories(home):
+    """Directories that must stay hidden from the model after any parent bind."""
+    covered = []
+    for secret in SECRET_DIRECTORIES:
+        _remember_mask(covered, home / secret)
+    _remember_mask(covered, config.RETRO2_HOME)
+    return covered
+
+
+def _remember_mask(covered, path):
     path = Path(path).resolve()
     if path == Path("/") or not path.is_dir():
         return
     if any(path == item or path.is_relative_to(item) for item in covered):
         return
-    command.extend(["--tmpfs", str(path)])
-    covered.add(path)
+    covered.append(path)
+
+
+def _strictly_inside(path, masks):
+    path = Path(path).resolve()
+    return any(path != mask and path.is_relative_to(mask) for mask in masks)
 
 
 def _added_directories(argv):
@@ -101,18 +113,16 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
     child_env = restricted_environment(env)
     home = Path(child_env["HOME"]).resolve()
     credentials = [Path(path).resolve() for path in credential_paths]
-    # /tmp is already a private tmpfs. Mask $HOME/.claude and the configured
-    # harness even when RETRO2_HOME points somewhere else; missing directories
-    # have nothing to hide, and a read-only root cannot grow a new mount point.
-    covered = {Path("/tmp").resolve()}
-    for secret in SECRET_DIRECTORIES:
-        _cover_with_tmpfs(command, home / secret, covered)
-    _cover_with_tmpfs(command, config.RETRO2_HOME, covered)
-    if (home / ".netrc").exists():
-        command += ["--ro-bind", "/dev/null", str(home / ".netrc")]
+    # A parent bind (the project repo, when it is $HOME or contains the harness)
+    # covers every earlier mount underneath it. Masks are therefore applied
+    # again after those binds. Refusing such repos would break a normal tree
+    # nested in $HOME and a checkout whose root is $HOME; remasking keeps both
+    # the project and the allowlisted harness files readable.
+    masks = _mask_directories(home)
     # A host worktree may point into the configured harness Git directory. Keep that tree
     # tree masked, exposing only a read-only scaffold and the named metadata.
     with tempfile.TemporaryDirectory(prefix="retro2-git-view-") as temporary:
+        scaffold = None
         if git_roots:
             scaffold = Path(temporary) / "retro2-home"
             for root in git_roots:
@@ -120,9 +130,20 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
                 (target if root.is_dir() else target.parent).mkdir(parents=True, exist_ok=True)
                 if root.is_file():
                     target.touch()
-            command += ["--ro-bind", str(scaffold), str(config.RETRO2_HOME)]
+        for root in roots:
+            command += ["--ro-bind", str(root), str(root)]
+        command += ["--bind", str(writable_root), str(writable_root)]
+        for mask in masks:
+            command += ["--tmpfs", str(mask)]
+        if scaffold is not None:
+            command += ["--ro-bind", str(scaffold), str(config.RETRO2_HOME.resolve())]
             for root in git_roots:
                 command += ["--ro-bind", str(root), str(root)]
+        for root in roots:
+            if _strictly_inside(root, masks):
+                command += ["--ro-bind", str(root), str(root)]
+        if _strictly_inside(writable_root, masks):
+            command += ["--bind", str(writable_root), str(writable_root)]
         # Claude reads $CLAUDE_CONFIG_DIR/.credentials.json. Mount that file
         # outside every directory the model can read. --add-dir accepts
         # directories only, so CLAUDE.md and settings.json stay visible by
@@ -147,9 +168,9 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
             command += ["--dir", str(dest_dir), "--ro-bind", str(credential), str(dest_dir / ".credentials.json")]
             child_env["CLAUDE_CONFIG_DIR"] = str(dest_dir)
             child_env["CLAUDE_CREDENTIAL_FILE"] = str(dest_dir / ".credentials.json")
-        for root in roots:
-            command += ["--ro-bind", str(root), str(root)]
-        command += ["--bind", str(writable_root), str(writable_root), "--proc", "/proc", "--dev", "/dev",
+        if (home / ".netrc").exists():
+            command += ["--ro-bind", "/dev/null", str(home / ".netrc")]
+        command += ["--proc", "/proc", "--dev", "/dev",
                     "--chdir", str(Path(cwd or writable_root).resolve()), "--", "/bin/sh", "-c",
                     'printf "R2_CHILD_STARTED\\n"; exec "$@"', "r2-child", *[str(item) for item in argv]]
         try:
