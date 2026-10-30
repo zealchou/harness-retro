@@ -1,0 +1,29 @@
+{
+  "structured_output": {
+    "status": "UNDIAGNOSED",
+    "hypotheses": [
+      "A registered automatic check may point at a stale command."
+    ],
+    "findings": [
+      {
+        "statement": "The diagnostic record identifies a stale automatic-check registration.",
+        "angles": [
+          "Automated checks",
+          "Navigation"
+        ],
+        "target": "host",
+        "evidence_path": "/tmp/retro2-diagnostics/guard.log",
+        "change_path": "hooks/guard.py",
+        "machine_evidence_refs": [
+          {
+            "source_tool": "gate_record",
+            "content_sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            "component": "guard.log",
+            "symptom": "registered command missing",
+            "occurrences": 2
+          }
+        ]
+      }
+    ]
+  }
+}

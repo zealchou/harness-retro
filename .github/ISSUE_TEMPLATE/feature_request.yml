@@ -1,0 +1,37 @@
+name: Feature request
+description: Propose a focused improvement or portability enhancement
+title: "[Feature]: "
+labels: ["enhancement", "triage"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What concrete workflow or safety problem should be solved?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Safety boundaries affected
+      description: Explain approval, isolation, protected paths, rollback, or provenance implications.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope confirmation
+      options:
+        - label: This request does not require weakening an existing safety gate.
+          required: true
+

@@ -1,0 +1,47 @@
+{
+  "incident_id": "SYN-012",
+  "title": "Untrusted rule promotion",
+  "source": {
+    "kind": "deferred_defect",
+    "path": "examples/evidence/12-index-poisoning.txt",
+    "lines": "1-2",
+    "evidence_sha256": "54d9cd2db2a7ec585d40bc653ff5321f72c9ebfe017c1e35c1ee76b9fe84bb35"
+  },
+  "risk_class": "provenance",
+  "root_cause_family": "authority-boundary",
+  "fixture": {
+    "scenario": "Untrusted rule promotion",
+    "input": "synthetic",
+    "expected": "cost"
+  },
+  "expected_observable": "The cost guard produces a deterministic rejection or warning.",
+  "mechanical_checks": [
+    "evidence_sha256",
+    "fixture_replay"
+  ],
+  "jev_question": [
+    {
+      "code": "target",
+      "text": "Does the evidence demonstrate the untrusted rule promotion failure?"
+    }
+  ],
+  "positive_control": [
+    {
+      "code": "positive_control",
+      "text": "Does the evidence file contain a synthetic incident and observed result?"
+    }
+  ],
+  "negative_control": [
+    {
+      "code": "negative_control",
+      "text": "Does the evidence claim that production data was used?"
+    }
+  ],
+  "severity": "major",
+  "admission": {
+    "curator": "example maintainer",
+    "maintainer_confirmation_ref": "example-syn-012",
+    "date": "2026-01-01",
+    "catalog_version": 1
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "incident_id": "SYN-007",
+  "title": "Secret copied into report",
+  "source": {
+    "kind": "memory",
+    "path": "examples/evidence/07-secret-in-report.txt",
+    "lines": "1-2",
+    "evidence_sha256": "c66db69a56ac3198b5dc3db6cda258062a82d946f2778ead707ca64591fe7cf2"
+  },
+  "risk_class": "confidentiality",
+  "root_cause_family": "artifact-redaction",
+  "fixture": {
+    "scenario": "Secret copied into report",
+    "input": "synthetic",
+    "expected": "confidentiality"
+  },
+  "expected_observable": "The confidentiality guard produces a deterministic rejection or warning.",
+  "mechanical_checks": [
+    "evidence_sha256",
+    "fixture_replay"
+  ],
+  "jev_question": [
+    {
+      "code": "target",
+      "text": "Does the evidence demonstrate the secret copied into report failure?"
+    }
+  ],
+  "positive_control": [
+    {
+      "code": "positive_control",
+      "text": "Does the evidence file contain a synthetic incident and observed result?"
+    }
+  ],
+  "negative_control": [
+    {
+      "code": "negative_control",
+      "text": "Does the evidence claim that production data was used?"
+    }
+  ],
+  "severity": "blocker",
+  "admission": {
+    "curator": "example maintainer",
+    "maintainer_confirmation_ref": "example-syn-007",
+    "date": "2026-01-01",
+    "catalog_version": 1
+  }
+}

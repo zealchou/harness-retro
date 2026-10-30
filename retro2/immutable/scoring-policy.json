@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "catalog_version": 1,
+  "jev_script": "scripts/jev_judge.py",
+  "positive_control_min": 0.9,
+  "target_pass_min": 0.8,
+  "uncertain_lower_exclusive": 0.2,
+  "retry_until_pass": false,
+  "mechanical_checks_precede_jev": true
+}
+

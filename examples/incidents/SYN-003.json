@@ -1,0 +1,47 @@
+{
+  "incident_id": "SYN-003",
+  "title": "Shared bug oracle",
+  "source": {
+    "kind": "memory",
+    "path": "examples/evidence/03-shared-bug-oracle.txt",
+    "lines": "1-2",
+    "evidence_sha256": "038727fe83af7e99433dbafb1000cc1661265e5f1bb0bef52ee9b0235972cce1"
+  },
+  "risk_class": "correctness",
+  "root_cause_family": "independent-oracle",
+  "fixture": {
+    "scenario": "Shared bug oracle",
+    "input": "synthetic",
+    "expected": "correctness"
+  },
+  "expected_observable": "The correctness guard produces a deterministic rejection or warning.",
+  "mechanical_checks": [
+    "evidence_sha256",
+    "fixture_replay"
+  ],
+  "jev_question": [
+    {
+      "code": "target",
+      "text": "Does the evidence demonstrate the shared bug oracle failure?"
+    }
+  ],
+  "positive_control": [
+    {
+      "code": "positive_control",
+      "text": "Does the evidence file contain a synthetic incident and observed result?"
+    }
+  ],
+  "negative_control": [
+    {
+      "code": "negative_control",
+      "text": "Does the evidence claim that production data was used?"
+    }
+  ],
+  "severity": "blocker",
+  "admission": {
+    "curator": "example maintainer",
+    "maintainer_confirmation_ref": "example-syn-003",
+    "date": "2026-01-01",
+    "catalog_version": 1
+  }
+}

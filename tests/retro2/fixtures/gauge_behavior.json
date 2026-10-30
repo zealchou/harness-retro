@@ -1,0 +1,17 @@
+{
+  "context_window": 800000,
+  "cases": [
+    {
+      "name": "warn_75",
+      "event": "UserPromptSubmit",
+      "ratio": 0.75,
+      "expected_context": "context 已用約 75%，剩約 200,000 token。接下來可以：①先保存重要脈絡 ②把可獨立掃描的工作分離 ③縮短回覆與工具輸出。"
+    },
+    {
+      "name": "urgent_88",
+      "event": "PostToolUse",
+      "ratio": 0.88,
+      "expected_context": "context 已用約 88%，接近上限。把當前工作收到一個乾淨斷點，寫好交接，然後告知維護者狀態已保存；這是進度通知，不是把決定丟回去。"
+    }
+  ]
+}

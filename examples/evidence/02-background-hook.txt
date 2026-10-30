@@ -1,0 +1,2 @@
+Synthetic incident: an automatic save hook also fired inside a detached background job.
+Observed result: the job produced an unexpected commit attempt and the review gate stopped it.

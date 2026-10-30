@@ -1,0 +1,2 @@
+Synthetic incident: an approval for one patch was reused after the candidate changed.
+Observed result: the approval binding rejected the new patch digest.

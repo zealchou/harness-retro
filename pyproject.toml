@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retro-2"
+version = "0.1.0"
+description = "A safety-gated retrospective workflow for Claude Code."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = []
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8"]
+
+[project.scripts]
+retro-2 = "retro2_cli:main"
+retro-2-gauge = "retro2_gauge:main"
+
+[tool.setuptools]
+py-modules = ["retro2_cli", "retro2_gauge"]
+packages = ["retro2", "retro2.apply", "retro2.controller", "hooks"]
+
+[tool.setuptools.package-data]
+retro2 = ["contract/*.json", "immutable/*.json", "schemas/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
+

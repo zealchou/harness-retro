@@ -1,0 +1,47 @@
+{
+  "incident_id": "SYN-009",
+  "title": "Repeated retry cost",
+  "source": {
+    "kind": "memory",
+    "path": "examples/evidence/09-cost-runaway.txt",
+    "lines": "1-2",
+    "evidence_sha256": "14218bbfde7c2db8f6b5946748dada00db9815ae29551e1a6595eeca1688191f"
+  },
+  "risk_class": "cost",
+  "root_cause_family": "retry-bounds",
+  "fixture": {
+    "scenario": "Repeated retry cost",
+    "input": "synthetic",
+    "expected": "cost"
+  },
+  "expected_observable": "The cost guard produces a deterministic rejection or warning.",
+  "mechanical_checks": [
+    "evidence_sha256",
+    "fixture_replay"
+  ],
+  "jev_question": [
+    {
+      "code": "target",
+      "text": "Does the evidence demonstrate the repeated retry cost failure?"
+    }
+  ],
+  "positive_control": [
+    {
+      "code": "positive_control",
+      "text": "Does the evidence file contain a synthetic incident and observed result?"
+    }
+  ],
+  "negative_control": [
+    {
+      "code": "negative_control",
+      "text": "Does the evidence claim that production data was used?"
+    }
+  ],
+  "severity": "major",
+  "admission": {
+    "curator": "example maintainer",
+    "maintainer_confirmation_ref": "example-syn-009",
+    "date": "2026-01-01",
+    "catalog_version": 1
+  }
+}

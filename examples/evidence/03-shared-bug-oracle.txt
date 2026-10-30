@@ -1,0 +1,2 @@
+Synthetic incident: implementation and test copied the same incorrect assumption.
+Observed result: local tests passed but an independent fixture exposed the mismatch.

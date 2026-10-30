@@ -1,0 +1,2 @@
+Synthetic incident: untrusted transcript prose attempted to become a standing rule.
+Observed result: provenance checks kept it as evidence and refused promotion to authority.

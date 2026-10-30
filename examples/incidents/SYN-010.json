@@ -1,0 +1,47 @@
+{
+  "incident_id": "SYN-010",
+  "title": "Stale candidate evidence",
+  "source": {
+    "kind": "deferred_defect",
+    "path": "examples/evidence/10-stale-evidence.txt",
+    "lines": "1-2",
+    "evidence_sha256": "ac71e5c0663a2d8196a83e3f8c3d10c3a8960c6d42769758fa0b440313a83620"
+  },
+  "risk_class": "correctness",
+  "root_cause_family": "evidence-binding",
+  "fixture": {
+    "scenario": "Stale candidate evidence",
+    "input": "synthetic",
+    "expected": "correctness"
+  },
+  "expected_observable": "The correctness guard produces a deterministic rejection or warning.",
+  "mechanical_checks": [
+    "evidence_sha256",
+    "fixture_replay"
+  ],
+  "jev_question": [
+    {
+      "code": "target",
+      "text": "Does the evidence demonstrate the stale candidate evidence failure?"
+    }
+  ],
+  "positive_control": [
+    {
+      "code": "positive_control",
+      "text": "Does the evidence file contain a synthetic incident and observed result?"
+    }
+  ],
+  "negative_control": [
+    {
+      "code": "negative_control",
+      "text": "Does the evidence claim that production data was used?"
+    }
+  ],
+  "severity": "blocker",
+  "admission": {
+    "curator": "example maintainer",
+    "maintainer_confirmation_ref": "example-syn-010",
+    "date": "2026-01-01",
+    "catalog_version": 1
+  }
+}

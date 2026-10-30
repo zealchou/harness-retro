@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "catalog_version": 1,
+  "protected": [
+    {
+      "category": "incident_bank",
+      "paths": [
+        "examples/incidents/*.json"
+      ]
+    },
+    {
+      "category": "scoring_policy",
+      "paths": [
+        "retro2/immutable/immutable-manifest.json",
+        "retro2/immutable/scoring-policy.json",
+        "retro2/schemas/incident.schema.json"
+      ]
+    },
+    {
+      "category": "apply_controller",
+      "paths": [
+        "retro2/controller/run.py"
+      ]
+    },
+    {
+      "category": "revert_controller",
+      "paths": [
+        "retro2/apply/transaction.py"
+      ]
+    },
+    {
+      "category": "settings_security",
+      "paths": [
+        "settings.json",
+        "examples/settings.json"
+      ]
+    },
+    {
+      "category": "credentials",
+      "paths": [
+        "*.pem",
+        "examples/security/*.pem",
+        "*.key",
+        ".env",
+        "*.env",
+        "*credential*",
+        "*secret*"
+      ]
+    },
+    {
+      "category": "security_hook_tests",
+      "paths": [
+        "hooks/test_*security*.py",
+        "hooks/test_security_*.py"
+      ]
+    }
+  ],
+  "required_paths": [
+    "retro2/controller/run.py",
+    "retro2/apply/transaction.py",
+    "retro2/immutable/immutable-manifest.json",
+    "retro2/immutable/scoring-policy.json"
+  ],
+  "settings_fields": [
+    "permissions",
+    "sandbox"
+  ],
+  "hashes": {
+    "examples/incidents/SYN-001.json": "884eba4d45cbf94d3fe66053e18e89dfe65d275ccc3e0b226ee8ac213017d210",
+    "examples/incidents/SYN-002.json": "a67b231b82d65cbfa97fe9a953fa50e7499ad48dc9e3a9c20b2556f30c60505d",
+    "examples/incidents/SYN-003.json": "e4b0a40474692c999d3897d1c7cdc71c6c9d9bacbad7d80cdf03a77e3a503d3c",
+    "examples/incidents/SYN-004.json": "bf705604d52d91a106dd9ffa4c83de250dab0e9017b684084b1bdf8b25529282",
+    "examples/incidents/SYN-005.json": "38c99b5d9438732a85e290b71c297dc6262cfdaefd5fe5c0aef39adaa09ddd03",
+    "examples/incidents/SYN-006.json": "a68249fe64f40129cd8e0aad7776b87b4c6ac2c6b3ad76d1096de8d7c494f023",
+    "examples/incidents/SYN-007.json": "2bd8e39d12abe3d9a4d5444e85466d218a4394428c969a6a42672f9f1421acb3",
+    "examples/incidents/SYN-008.json": "77d20c60f7500a4694ab026b130137a93617b6ab8d1d3580c8b8b92edce3e7b6",
+    "examples/incidents/SYN-009.json": "3cf4af9cbfdc23d52d3651c78e958ff760b1dda02bb6969f99c076ad6fc50702",
+    "examples/incidents/SYN-010.json": "4d2fdb26a571ed6098b4294dea7e95675f72ebaccca631cfeb83c3378cc895c1",
+    "examples/incidents/SYN-011.json": "6b621a9c56612243b4c412e7b090fbf5101bb0cb651ba551900c9e30b7e52f7f",
+    "examples/incidents/SYN-012.json": "5ee3c3adf98970ec625ae02bd401e26b9be407ebd6feb70dfc5a964c472a3e7b",
+    "retro2/immutable/scoring-policy.json": "9fb160c07775d89b481ebf2426164a9fa45d1df6047fdc2bf5841848e94f74b1",
+    "retro2/controller/run.py": "64566157811a58b86e655938cf743b945c322bfa6db9a7472a2b75b32cf1b17c",
+    "retro2/apply/transaction.py": "545954a7894b01b3ca63265717c965d9d240c3163d02ebc561fffab287b54c31",
+    "retro2/schemas/incident.schema.json": "4a0ab7d29486aab8b479f46125a8c50f572862e912365a03cecd5a2bec5f797a"
+  }
+}

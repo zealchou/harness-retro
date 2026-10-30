@@ -1,0 +1,2 @@
+Synthetic incident: a renamed command remained registered under its old name.
+Observed result: startup succeeded and the action failed only when invoked.

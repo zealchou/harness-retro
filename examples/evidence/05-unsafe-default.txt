@@ -1,0 +1,2 @@
+Synthetic incident: an optional safety flag defaulted to permissive behavior.
+Observed result: a clean installation enabled a capability the operator had not approved.

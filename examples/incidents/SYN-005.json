@@ -1,0 +1,47 @@
+{
+  "incident_id": "SYN-005",
+  "title": "Unsafe default",
+  "source": {
+    "kind": "memory",
+    "path": "examples/evidence/05-unsafe-default.txt",
+    "lines": "1-2",
+    "evidence_sha256": "73efdd6d893cd97bf37a4ddfcf9398d59dc3642aded3fb65986f88806fc40df8"
+  },
+  "risk_class": "confidentiality",
+  "root_cause_family": "safe-defaults",
+  "fixture": {
+    "scenario": "Unsafe default",
+    "input": "synthetic",
+    "expected": "confidentiality"
+  },
+  "expected_observable": "The confidentiality guard produces a deterministic rejection or warning.",
+  "mechanical_checks": [
+    "evidence_sha256",
+    "fixture_replay"
+  ],
+  "jev_question": [
+    {
+      "code": "target",
+      "text": "Does the evidence demonstrate the unsafe default failure?"
+    }
+  ],
+  "positive_control": [
+    {
+      "code": "positive_control",
+      "text": "Does the evidence file contain a synthetic incident and observed result?"
+    }
+  ],
+  "negative_control": [
+    {
+      "code": "negative_control",
+      "text": "Does the evidence claim that production data was used?"
+    }
+  ],
+  "severity": "blocker",
+  "admission": {
+    "curator": "example maintainer",
+    "maintainer_confirmation_ref": "example-syn-005",
+    "date": "2026-01-01",
+    "catalog_version": 1
+  }
+}

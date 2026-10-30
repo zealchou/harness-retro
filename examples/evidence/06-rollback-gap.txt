@@ -1,0 +1,2 @@
+Synthetic incident: application succeeded but its rollback receipt omitted one changed file.
+Observed result: simulated regression could not restore the complete baseline.

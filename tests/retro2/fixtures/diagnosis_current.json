@@ -1,0 +1,32 @@
+{
+  "status": "UNDIAGNOSED",
+  "hypotheses": [
+    "More evidence is required before selecting a change target."
+  ],
+  "findings": [
+    {
+      "statement": "A diagnostic path records repeated automatic-check failures.",
+      "angles": [
+        "Automated checks"
+      ],
+      "target": "host",
+      "evidence_path": "/tmp/retro2-diagnostics/guard.log",
+      "change_path": "",
+      "trusted_decision_refs": [
+        "decision-example"
+      ]
+    },
+    {
+      "statement": "A clean-install setting may be absent.",
+      "angles": [
+        "Navigation"
+      ],
+      "target": "host",
+      "evidence_path": "settings.json",
+      "change_path": "",
+      "trusted_decision_refs": [
+        "decision-example"
+      ]
+    }
+  ]
+}

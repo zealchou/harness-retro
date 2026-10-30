@@ -1,0 +1,2 @@
+Synthetic incident: an isolated candidate test attempted outbound network access.
+Observed result: the sandbox denied the request and recorded an infrastructure-safe failure.

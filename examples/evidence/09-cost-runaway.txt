@@ -1,0 +1,2 @@
+Synthetic incident: repeated model retries ignored an unchanged failure signature.
+Observed result: the budget guard stopped the round before a third equivalent attempt.

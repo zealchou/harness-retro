@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "retro-2 evidence provenance",
+  "type": "object",
+  "required": ["schema_version", "items"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "items": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["evidence_id", "source_type", "source_ref", "trust", "content"],
+        "properties": {
+          "evidence_id": {"type": "string"},
+          "source_type": {"type": "string"},
+          "source_ref": {"type": "string"},
+          "source": {"type": "string"},
+          "trust": {"enum": ["trusted_decision", "untrusted_evidence"]},
+          "content": {"type": "string"},
+          "component": {"type": "string"},
+          "symptom": {"type": "string"},
+          "occurrences": {"type": "integer", "minimum": 1}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

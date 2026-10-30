@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {"hooks": [{"type": "command", "command": "RETRO2_QUEUE_ENABLED=1 retro-2-gauge"}]}
+    ],
+    "PostToolUse": [
+      {"hooks": [{"type": "command", "command": "RETRO2_QUEUE_ENABLED=1 retro-2-gauge"}]}
+    ]
+  }
+}

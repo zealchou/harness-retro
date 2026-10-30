@@ -1,0 +1,6 @@
+diff --git a/hooks/auto_save.sh b/hooks/auto_save.sh
+--- a/hooks/auto_save.sh
++++ b/hooks/auto_save.sh
+@@ -1 +1 @@
+-echo "commit failed"
++echo "preflight passed; commit failed for an unconfirmed reason (variant A)"

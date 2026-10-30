@@ -1,0 +1,2 @@
+Synthetic incident: a tested helper existed but no production entry point called it.
+Observed result: unit tests passed while the user-facing behavior remained unchanged.

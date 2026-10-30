@@ -1,0 +1,2 @@
+Synthetic incident: a candidate cited evidence captured before the target file changed.
+Observed result: the preimage binding invalidated the candidate before application.
