@@ -1,12 +1,12 @@
 # harness-retro
 
-[![CI](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml/badge.svg)](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5) ![Status](https://img.shields.io/badge/status-maintainer%20review-orange)
+> 每一種改法都先在沙盒裡測過，才來問你要不要用。
+
+[![CI](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml/badge.svg)](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5)
 
 **harness-retro 是一套有安全閘門的回顧工作流：讓 Claude Code 從自己的對話紀錄找出失誤、提出三個候選改法、隔離測試、通過四類審查，最後等人明確批准才改正式倉庫。**
 
 [English](README.md) · [架構](docs/architecture.md) · [安全模型](docs/safety-model.md) · [撰寫事故題庫](docs/writing-incidents.md)
-
-> 本倉庫目前是公開前的維護者審閱候選版，尚不應視為 production-ready。
 
 ## 為什麼需要它
 
@@ -18,6 +18,18 @@
 - 不可改區不能被候選自動變更；
 - 套用前必須明確批准一個確切候選；
 - 收據可供撤回、追蹤與拒絕索引使用。
+
+## 跟 `/retro` 類 skill 有什麼不同
+
+像 [craftwork-design/retro](https://github.com/craftwork-design/retro)、[netresearch/retro-skill](https://github.com/netresearch/retro-skill) 這類 skill，幾秒就裝好，在 Claude Code 裡打一個指令就能用，適合想快速整理心得、得到規則建議的人。
+
+harness-retro 刻意做得比較重：要 Python、Git、Linux 和 bubblewrap。換來的是：
+
+- 三種候選改法，每一種都先在拋棄式沙盒裡測過，才進入審查；
+- 你的批准綁定在那一份補丁的指紋上，補丁一改就要重新批准；
+- 套用後留下收據，可以還原。
+
+想輕鬆回顧，用 skill；想讓每一次修改 AI 規則都先測過、事後查得到，用 harness-retro。
 
 ## 七站流程
 
@@ -130,6 +142,18 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 
 ## FAQ
 
+**怎麼讓 Claude Code 減少重犯同一個錯？**  
+把糾正寫成規則或測試，而不是只在對話裡講一次。harness-retro 幫你做這件事：它讀你糾正 AI 的那段對話，找出可能的原因，針對規則檔（例如 CLAUDE.md）或測試提出三種改法，各自在沙盒裡測試，等你批准其中一個。
+
+**harness-retro 跟 `/retro` 類 skill 有什麼不同？**  
+skill 裝起來比較快，直接在 Claude Code 裡跑。harness-retro 要 Linux 和 bubblewrap，但每一種改法都先隔離測試，你的批准綁定在確切的補丁上，而且留有收據可以還原。詳見上方「跟 `/retro` 類 skill 有什麼不同」。
+
+**它會把我的程式碼或對話紀錄傳到別的地方嗎？要花多少錢？**  
+會，傳給你自己帳號下的 Claude。使用預設的 Claude 後端時，harness-retro 會把這段對話裡你最近打的最多 30 則訊息（每則最多 1,500 字）透過你自己的 `claude -p` 指令送給模型，模型也可以唯讀讀取你的專案、`~/.claude` 的一部分（`CLAUDE.md`、`settings.json`、`hooks` 和 `scripts/logs`），以及診斷目錄（預設是 `/tmp/retro2-diagnostics`），但不能修改。harness-retro 本身不回傳任何使用資料，也不會把資料送給作者。它用你自己的 Claude 額度，每次呼叫模型內建 3 或 5 美元的花費上限。候選改法的測試在 bubblewrap 沙盒裡進行，網路是關掉的。
+
+**我是中小企業老闆、不會寫程式，這個適合我嗎？**  
+不直接適合：這是給 Linux 開發者用的工具。但背後的做法任何用 AI 助手的團隊都用得上：AI 做錯時留下證據、先測試改法、由人批准後才變成規則。可以把這個專案轉給負責你們 AI 工具的工程師看。
+
 **會自動改自己嗎？** 不會。發行設定預設只出報告，必須由人批准綁定雜湊的具名候選。
 
 **為什麼一定三個候選？** 避免第一個看似合理的解釋變成唯一方案；近似重複的補丁不算獨立選項。
@@ -141,7 +165,6 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 ## Roadmap
 
 - 用更多經同意、可公開驗證的事故檢驗流程。
-- 由維護者決定並採用正式授權。
 - 在不削弱 Linux 基準的前提下加入其他隔離後端。
 - 版本化 CLI／模型相容矩陣並改善錯誤訊息。
 - 補上私人漏洞回報聯絡方式與正式發布清單。

@@ -1,0 +1,25 @@
+# harness-retro
+
+> harness-retro is an open-source (Apache-2.0) retrospective workflow for Claude Code. When an AI coding agent repeats a mistake, it reads the session transcript, looks for the likely cause, drafts three candidate fixes to rule files (such as CLAUDE.md) or tests, tests each one in a bubblewrap sandbox, passes four review checks, and changes nothing until a human approves one exact, digest-bound candidate.
+
+Requirements: Python 3.11 or 3.12, Git, a compatible `claude` CLI, and Linux with bubblewrap. The default policy is report-only. Strong isolation is Linux-only. The bundled incidents are synthetic teaching examples, not real user data. During a run, recent session messages are sent to the model through the user's own `claude` CLI, and the model gets read-only access to the repository, parts of `~/.claude` (`CLAUDE.md`, `settings.json`, `hooks`, and `scripts/logs`), and the diagnostics directory (`/tmp/retro2-diagnostics` by default).
+
+## Docs
+
+- [README](https://github.com/zealchou/harness-retro/blob/main/README.md): what it does, quick start, the full configuration table, FAQ
+- [Architecture](https://github.com/zealchou/harness-retro/blob/main/docs/architecture.md): the seven stations and data flow
+- [Safety model](https://github.com/zealchou/harness-retro/blob/main/docs/safety-model.md): threat model, protected paths, approval binding, rollback
+- [Example run](https://github.com/zealchou/harness-retro/blob/main/docs/example-run.md): a de-identified walk-through from incident to approval
+- [Writing incidents](https://github.com/zealchou/harness-retro/blob/main/docs/writing-incidents.md): how to build your own incident bank
+
+## Code
+
+- [Controller entry](https://github.com/zealchou/harness-retro/blob/main/retro2/controller/run.py): the only controller entry point
+- [Configuration](https://github.com/zealchou/harness-retro/blob/main/retro2/config.py): portable filesystem defaults and most environment variables (see the README configuration table for the full list)
+- [Example hook settings](https://github.com/zealchou/harness-retro/blob/main/examples/settings.json): opt-in context-pressure hook for Claude Code
+
+## Optional
+
+- [繁體中文 README](https://github.com/zealchou/harness-retro/blob/main/README.zh-TW.md)
+- [Contributing](https://github.com/zealchou/harness-retro/blob/main/CONTRIBUTING.md)
+- [Security policy](https://github.com/zealchou/harness-retro/blob/main/SECURITY.md)
