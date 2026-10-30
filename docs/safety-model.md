@@ -45,7 +45,7 @@ The rejection index skips repeated mechanical work only when the subject, baseli
 
 ## Isolation guarantee
 
-On supported Linux hosts, bubblewrap exposes one writable worktree, selected read-only roots, `/proc`, and `/dev`. Credential directories are masked; an individual credential file may be rebound read-only only for an approved model endpoint. Tests do not receive model network access.
+On supported Linux hosts, bubblewrap exposes one writable worktree, selected read-only roots, `/proc`, and `/dev`. Credential directories are masked. A Claude credential file is rebound read-only under `CLAUDE_CONFIG_DIR`, outside the directories given to the model's file tools, so the CLI can authenticate without those tools reading it. Tests do not receive model network access.
 
 If bubblewrap or the required namespace is unavailable, safety-sensitive execution stops. A test may skip because the host cannot demonstrate the isolation primitive, but production execution must not silently fall back to an unrestricted subprocess.
 

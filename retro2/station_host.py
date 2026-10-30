@@ -250,6 +250,10 @@ class PythonStationRunner:
         else:
             if not self.claude:
                 raise RuntimeError("claude executable unavailable")
+            # --add-dir accepts directories only, and --restricted file tools read
+            # a file only from the working directory or an added directory.
+            # CLAUDE.md and settings.json live in the harness root, so that root
+            # stays added. The credential file is mounted outside it.
             tools = ["--restricted", "--tools", READ_ONLY_TOOLS, "--allowedTools", READ_ONLY_TOOLS,
                      "--add-dir", str(self.repo), "--add-dir", str(HOST_HARNESS), "--add-dir", str(config.DIAGNOSTICS_DIR), "--max-budget-usd", "5.00"] if read_only_repo \
                 else ["--tools", "", "--max-budget-usd", "3.00"]
@@ -270,7 +274,7 @@ class PythonStationRunner:
                 isolated = run_restricted(
                     argv, worktree or self.run_dir, cwd=worktree or self.repo, timeout=timeout, allow_network=True,
                     readonly_roots=(self.repo, *HOST_HARNESS_READS) if kind == "diagnosis" else (),
-                    credential_paths=(credential,))  # 唯讀單檔憑證；已遮蔽的 home 目錄不可整個掛回
+                    credential_paths=(credential,))  # relocated outside model read roots; home dir stays masked
                 code, stdout, stderr = isolated.returncode, isolated.stdout, isolated.stderr
             else:
                 code, stdout, stderr = self.command(argv, cwd=self.repo if read_only_repo else None, timeout=timeout)

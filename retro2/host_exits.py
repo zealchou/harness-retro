@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import os
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -74,7 +75,8 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
     # known credential homes are hidden before any model child receives network.
     # and a false-green test can succeed without starting its child.
     command += ["--ro-bind", "/", "/", "--tmpfs", "/tmp"]
-    home = Path(restricted_environment(env)["HOME"]).resolve()
+    child_env = restricted_environment(env)
+    home = Path(child_env["HOME"]).resolve()
     credentials = [Path(path).resolve() for path in credential_paths]
     # 根目錄唯讀時 bwrap 無法替不存在的路徑建掛載點；不存在的秘密也就沒有東西可遮。
     for secret in SECRET_DIRECTORIES:
@@ -95,12 +97,25 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
             command += ["--ro-bind", str(scaffold), str(config.RETRO2_HOME)]
             for root in git_roots:
                 command += ["--ro-bind", str(root), str(root)]
+        # Claude reads $CLAUDE_CONFIG_DIR/.credentials.json. Mount that file
+        # outside the harness tree: diagnosis passes the harness root to
+        # --add-dir, and --add-dir cannot name CLAUDE.md or settings.json
+        # individually because it accepts directories only.
+        visible = (*roots, writable_root, Path(cwd or writable_root).resolve())
         for credential in credentials:
-            if credential.is_file() and (
-                credential.is_relative_to(config.RETRO2_HOME)
-                or credential.is_relative_to(home / ".codex")
-            ):
+            if not credential.is_file():
+                continue
+            if credential.is_relative_to(home / ".codex"):
                 command += ["--ro-bind", str(credential), str(credential)]
+                continue
+            if not credential.is_relative_to(config.RETRO2_HOME):
+                continue
+            dest_dir = Path("/tmp") / ("retro2-claude-auth-" + secrets.token_hex(8))
+            if any(dest_dir.is_relative_to(path) or path.is_relative_to(dest_dir) for path in visible):
+                raise HostExitError("credential mount overlaps a model-visible root")
+            command += ["--dir", str(dest_dir), "--ro-bind", str(credential), str(dest_dir / ".credentials.json")]
+            child_env["CLAUDE_CONFIG_DIR"] = str(dest_dir)
+            child_env["CLAUDE_CREDENTIAL_FILE"] = str(dest_dir / ".credentials.json")
         for root in roots:
             command += ["--ro-bind", str(root), str(root)]
         command += ["--bind", str(writable_root), str(writable_root), "--proc", "/proc", "--dev", "/dev",
@@ -108,7 +123,7 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
                     'printf "R2_CHILD_STARTED\\n"; exec "$@"', "r2-child", *[str(item) for item in argv]]
         try:
             result = subprocess.run(command, text=True, capture_output=True, timeout=timeout, check=False,
-                                    env=restricted_environment(env), stdin=subprocess.DEVNULL)
+                                    env=child_env, stdin=subprocess.DEVNULL)
         except subprocess.TimeoutExpired as error:
             result = subprocess.CompletedProcess(command, 124, error.stdout or "", error.stderr or "timeout")
     result.child_started = result.stdout.startswith(CHILD_SENTINEL)
