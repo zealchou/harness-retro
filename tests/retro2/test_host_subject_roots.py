@@ -81,7 +81,9 @@ else:
     statuses.append("LOGS_DIR" if (harness / "scripts" / "logs").is_dir() else "LOGS_MISSING")
     statuses.append("HARNESS_CRED_PRESENT" if (harness / ".credentials.json").exists() else "HARNESS_CRED_ABSENT")
 expect_path = cwd / "scope-expect.json"
-expect = json.loads(expect_path.read_text(encoding="utf-8")) if expect_path.is_file() else {}
+expect = json.loads('''__EXPECT__''')
+if expect_path.is_file():
+    expect.update(json.loads(expect_path.read_text(encoding="utf-8")))
 hidden = [Path(item) for item in expect.get("hidden", [])]
 statuses.append("HIDDEN_PRESENT" if any(path.exists() for path in hidden) else "HIDDEN_ABSENT")
 run_file = Path(expect["run_file"]) if expect.get("run_file") else None
@@ -91,6 +93,33 @@ statuses.append(
     "DIAGNOSTICS_VISIBLE" if diagnostics is not None and (diagnostics / "visible.txt").is_file() else "DIAGNOSTICS_MISSING"
 )
 statuses.append("REPO_READABLE" if (cwd / "repo-visible.txt").is_file() else "REPO_MISSING")
+canary = Path(expect["canary"]) if expect.get("canary") else None
+statuses.append("CANARY_ABSENT" if canary is None or not canary.exists() else "CANARY_PRESENT")
+claude_cred = Path(expect["claude_cred"]) if expect.get("claude_cred") else None
+statuses.append("CLAUDE_CRED_ABSENT" if claude_cred is None or not claude_cred.exists() else "CLAUDE_CRED_PRESENT")
+codex_auth = Path(expect["codex_auth"]) if expect.get("codex_auth") else None
+statuses.append("CODEX_AUTH_ABSENT" if codex_auth is None or not codex_auth.exists() else "CODEX_AUTH_PRESENT")
+
+
+def _denied(path):
+    try:
+        Path(path).write_text("nope", encoding="utf-8")
+    except OSError:
+        return True
+    return False
+
+
+write_target = expect.get("write_target")
+statuses.append("WRITE_DENY" if write_target and _denied(write_target) else "WRITE_ALLOWED")
+scratch = os.environ.get("RETRO2_DIAGNOSIS_SCRATCH")
+if scratch:
+    try:
+        Path(scratch, "probe").write_text("ok", encoding="utf-8")
+        statuses.append("WRITE_SCRATCH_OK")
+    except OSError:
+        statuses.append("WRITE_SCRATCH_FAIL")
+else:
+    statuses.append("WRITE_SCRATCH_FAIL")
 leaked = False
 if marker:
     for root in (cwd, *dirs):
@@ -174,12 +203,12 @@ class HostSubjectRootTests(unittest.TestCase):
             ticket = {"schema_version": 1, "idempotency_key": "diagnosis-roots", "controller_entry": "retro2/controller/run.py", "repo_root": str(subject)}
             runner = station_host.PythonStationRunner(ticket, Path(directory) / "runs", claude="claude")
             completed = subprocess.CompletedProcess(["bwrap"], 0, json.dumps({"structured_output": {"status": "UNDIAGNOSED"}, "usage": {}}), "")
-            with mock.patch.object(station_host, "run_restricted", return_value=completed) as restricted:
+            with mock.patch.object(station_host, "run_allowlisted", return_value=completed) as restricted:
                 runner._structured("diagnosis", {}, read_only_repo=True)
-            roots = restricted.call_args.kwargs["readonly_roots"]
+            roots = restricted.call_args.kwargs["harness_reads"]
             self.assertIn(station_host.HOST_HARNESS / "hooks", roots)
             self.assertIn(station_host.HOST_HARNESS / "scripts/logs", roots)
-            self.assertIn(Path("/tmp/retro2-diagnostics"), roots)
+            self.assertEqual(Path("/tmp/retro2-diagnostics"), Path(restricted.call_args.kwargs["diagnostics"]))
             self.assertFalse(any(".credentials" in str(path) or "/projects" in str(path) for path in roots))
             creds = restricted.call_args.kwargs["credential_paths"]
             self.assertEqual(1, len(creds)); self.assertTrue(str(creds[0]).endswith(".credentials.json"))
@@ -228,7 +257,7 @@ class HostSubjectRootTests(unittest.TestCase):
         git(repo, "commit", "-qm", "baseline")
         return repo
 
-    def _assert_read_scope(self, *, home, harness, credential, marker, repo):
+    def _assert_read_scope(self, *, home, harness, credential, marker, repo, expect_repo=True):
         """Run diagnosis with the harness outside /tmp and the repo at `repo`."""
         self._git_repo(repo)
         diagnostics = repo.parent / ("diagnostics-" + repo.name)
@@ -237,9 +266,13 @@ class HostSubjectRootTests(unittest.TestCase):
         diagnostics.mkdir()
         (diagnostics / "visible.txt").write_text("diag\n", encoding="utf-8")
         runs = harness / "retro-2" / "runs"
+        canary = home / ("canary-" + secrets.token_hex(8) + ".txt")
+        canary.write_text(marker, encoding="utf-8")
+        codex_dir = home / ".codex"
+        codex_dir.mkdir(parents=True, exist_ok=True)
+        codex_auth = codex_dir / "auth.json"
+        codex_auth.write_text(marker, encoding="utf-8")
         checker = repo / "check_read_scope.py"
-        checker.write_text(READ_SCOPE_CHECKER, encoding="utf-8")
-        checker.chmod(0o755)
         hidden = [
             harness / "projects" / "hidden.txt",
             harness / "history" / "note.txt",
@@ -256,11 +289,18 @@ class HostSubjectRootTests(unittest.TestCase):
         runner.run_dir.mkdir(parents=True)
         (runner.run_dir / "leak.txt").write_text(marker, encoding="utf-8")
         hidden.append(runner.run_dir / "leak.txt")
-        (repo / "scope-expect.json").write_text(json.dumps({
+        expect = {
             "hidden": [str(path) for path in hidden],
             "run_file": str(runner.run_dir / "leak.txt"),
             "diagnostics": str(diagnostics),
-        }), encoding="utf-8")
+            "canary": str(canary),
+            "claude_cred": str(home / ".claude" / ".credentials.json"),
+            "codex_auth": str(codex_auth),
+            "write_target": str(harness / "CLAUDE.md"),
+        }
+        checker.write_text(READ_SCOPE_CHECKER.replace("__EXPECT__", json.dumps(expect)), encoding="utf-8")
+        checker.chmod(0o755)
+        (repo / "scope-expect.json").write_text(json.dumps(expect), encoding="utf-8")
         reads = (
             harness / "CLAUDE.md", harness / "settings.json", harness / "hooks",
             harness / "scripts" / "logs", diagnostics,
@@ -276,7 +316,9 @@ class HostSubjectRootTests(unittest.TestCase):
             "AUTH_READABLE", "AUTH_READONLY", "SCOPE_DENIES_AUTH", "HARNESS_IS_READ_ROOT",
             "RULES_READABLE", "SETTINGS_READABLE", "HOOKS_DIR", "LOGS_DIR",
             "HARNESS_CRED_ABSENT", "HIDDEN_ABSENT", "RUN_ABSENT", "DIAGNOSTICS_VISIBLE",
-            "REPO_READABLE", "MARKER_CONTAINED",
+            "REPO_READABLE" if expect_repo else "REPO_MISSING",
+            "CANARY_ABSENT", "CLAUDE_CRED_ABSENT", "CODEX_AUTH_ABSENT",
+            "WRITE_DENY", "WRITE_SCRATCH_OK", "MARKER_CONTAINED",
         ], result["statuses"])
         self.assertFalse(str(runner.run_dir).startswith("/tmp/"))
         self.assertFalse(str(harness).startswith("/tmp/"))
@@ -304,7 +346,10 @@ class HostSubjectRootTests(unittest.TestCase):
             harness = home / ".claude"
             marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
             credential = self._fill_private_tree(harness, marker)
-            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker, repo=home)
+            self._assert_read_scope(
+                home=home, harness=harness, credential=credential, marker=marker,
+                repo=home, expect_repo=False,
+            )
 
     @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
     def test_diagnosis_read_scope_when_repo_contains_home_claude(self):
@@ -314,9 +359,27 @@ class HostSubjectRootTests(unittest.TestCase):
             harness = home / ".claude"
             marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
             credential = self._fill_private_tree(harness, marker)
+            repo = root / "nest"
+            self.assertNotEqual(repo.resolve(), home.resolve())
+            self.assertTrue(harness.resolve().is_relative_to(repo.resolve()))
+            self.assertFalse(repo.resolve().is_relative_to(home.resolve()))
             self._assert_read_scope(
-                home=home, harness=harness, credential=credential, marker=marker,
-                repo=root / "nest",
+                home=home, harness=harness, credential=credential, marker=marker, repo=repo,
+            )
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_diagnosis_read_scope_when_repo_is_outside_home(self):
+        with self._outside_tmp("retro2-repo-outside-home-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            harness = home / ".claude"
+            repo = root / "elsewhere"
+            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
+            credential = self._fill_private_tree(harness, marker)
+            self.assertFalse(repo.resolve().is_relative_to(home.resolve()))
+            self.assertFalse(home.resolve().is_relative_to(repo.resolve()))
+            self._assert_read_scope(
+                home=home, harness=harness, credential=credential, marker=marker, repo=repo,
             )
 
     @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
@@ -366,6 +429,63 @@ class HostSubjectRootTests(unittest.TestCase):
             self.assertTrue(harness_masks)
             self.assertGreater(harness_masks[-1], repo_binds[0])
             self.assertEqual(mount_at("--ro-bind", credential, 2), [])
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_codex_auth_is_mounted_under_codex_home_not_in_the_project(self):
+        with self._outside_tmp("retro2-codex-auth-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            codex_dir = home / ".codex"
+            codex_dir.mkdir(parents=True)
+            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
+            auth = codex_dir / "auth.json"
+            auth.write_text(marker + "\n", encoding="utf-8")
+            (home / "repo-visible.txt").write_text("project\n", encoding="utf-8")
+            writable = root / "work"
+            writable.mkdir()
+            checker = root / "check_codex_auth.py"
+            checker.write_text(
+                "import json, os\n"
+                "from pathlib import Path\n"
+                "home = Path(os.environ['HOME'])\n"
+                "original = home / '.codex' / 'auth.json'\n"
+                "codex_home = Path(os.environ['CODEX_HOME'])\n"
+                "mounted = codex_home / 'auth.json'\n"
+                "statuses = []\n"
+                "statuses.append('ORIGINAL_ABSENT' if not original.exists() else 'ORIGINAL_PRESENT')\n"
+                "statuses.append('CODEX_HOME_OUTSIDE' if not codex_home.resolve().is_relative_to(home.resolve()) else 'CODEX_HOME_INSIDE')\n"
+                "try:\n"
+                "    data = mounted.read_text(encoding='utf-8')\n"
+                "    statuses.append('AUTH_READABLE' if data.startswith('SYNTHETIC-MARKER-') else 'AUTH_UNEXPECTED')\n"
+                "except OSError:\n"
+                "    statuses.append('AUTH_UNREADABLE')\n"
+                "try:\n"
+                "    mounted.write_text('nope', encoding='utf-8')\n"
+                "    statuses.append('AUTH_WRITABLE')\n"
+                "except OSError:\n"
+                "    statuses.append('AUTH_READONLY')\n"
+                "leaked = False\n"
+                "for path in home.rglob('*'):\n"
+                "    if not path.is_file():\n"
+                "        continue\n"
+                "    try:\n"
+                "        leaked = leaked or 'SYNTHETIC-MARKER-' in path.read_text(encoding='utf-8', errors='ignore')\n"
+                "    except OSError:\n"
+                "        pass\n"
+                "statuses.append('HOME_CLEAN' if not leaked else 'MARKER_IN_HOME')\n"
+                "print(json.dumps(statuses))\n",
+                encoding="utf-8",
+            )
+            result = host_exits.run_restricted(
+                [sys.executable, str(checker)], writable, cwd=home, readonly_roots=(home,),
+                credential_paths=(auth,), env={"HOME": str(home), "PATH": os.environ.get("PATH", "/usr/bin"), "LANG": "C"},
+            )
+            self.assertTrue(result.child_started, result.stderr)
+            self.assertEqual(0, result.returncode, result.stderr)
+            self.assertEqual(
+                ["ORIGINAL_ABSENT", "CODEX_HOME_OUTSIDE", "AUTH_READABLE", "AUTH_READONLY", "HOME_CLEAN"],
+                json.loads(result.stdout),
+            )
 
     def test_credential_mount_uses_add_dir_for_overlap(self):
         with self._outside_tmp("retro2-overlap-") as directory:

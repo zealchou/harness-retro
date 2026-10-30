@@ -48,6 +48,14 @@ def _strictly_inside(path, masks):
     return any(path != mask and path.is_relative_to(mask) for mask in masks)
 
 
+def _private_auth_dir(prefix, visible):
+    """A /tmp directory that is not inside a path the model is allowed to read."""
+    dest_dir = Path("/tmp") / (prefix + secrets.token_hex(8))
+    if any(dest_dir.is_relative_to(path) or path.is_relative_to(dest_dir) for path in visible):
+        raise HostExitError("credential mount overlaps a model-visible root")
+    return dest_dir
+
+
 def _added_directories(argv):
     found = []
     index = 0
@@ -157,14 +165,17 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
         for credential in credentials:
             if not credential.is_file():
                 continue
+            # Codex reads $CODEX_HOME/auth.json. The directory must exist before
+            # the process starts. Leaving the file at ~/.codex/auth.json keeps it
+            # on a path the read-only Codex sandbox can still read.
             if credential.is_relative_to(home / ".codex"):
-                command += ["--ro-bind", str(credential), str(credential)]
+                dest_dir = _private_auth_dir("retro2-codex-auth-", visible)
+                command += ["--dir", str(dest_dir), "--ro-bind", str(credential), str(dest_dir / "auth.json")]
+                child_env["CODEX_HOME"] = str(dest_dir)
                 continue
             if not credential.is_relative_to(config.RETRO2_HOME):
                 continue
-            dest_dir = Path("/tmp") / ("retro2-claude-auth-" + secrets.token_hex(8))
-            if any(dest_dir.is_relative_to(path) or path.is_relative_to(dest_dir) for path in visible):
-                raise HostExitError("credential mount overlaps a model-visible root")
+            dest_dir = _private_auth_dir("retro2-claude-auth-", visible)
             command += ["--dir", str(dest_dir), "--ro-bind", str(credential), str(dest_dir / ".credentials.json")]
             child_env["CLAUDE_CONFIG_DIR"] = str(dest_dir)
             child_env["CLAUDE_CREDENTIAL_FILE"] = str(dest_dir / ".credentials.json")
@@ -178,6 +189,131 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
                                     env=child_env, stdin=subprocess.DEVNULL)
         except subprocess.TimeoutExpired as error:
             result = subprocess.CompletedProcess(command, 124, error.stdout or "", error.stderr or "timeout")
+    result.child_started = result.stdout.startswith(CHILD_SENTINEL)
+    result.stdout = result.stdout[len(CHILD_SENTINEL):] if result.child_started else result.stdout
+    result.infrastructure_error = None if result.child_started else "child_start_failed"
+    return result
+
+
+SYSTEM_DIRECTORIES = ("/usr", "/lib", "/lib64", "/bin", "/sbin")
+SYSTEM_FILES = (
+    "/etc/resolv.conf", "/etc/hosts", "/etc/nsswitch.conf", "/etc/passwd",
+    "/etc/group", "/etc/localtime", "/etc/ssl", "/etc/ca-certificates",
+)
+HARNESS_READ_NAMES = ("CLAUDE.md", "settings.json", "hooks", "scripts/logs")
+
+
+def _contains(parent, child):
+    parent, child = Path(parent).resolve(), Path(child).resolve()
+    return child == parent or child.is_relative_to(parent)
+
+
+def project_mounts(project_root, home, harness_root):
+    """Repo paths that can be mounted without exposing HOME or the harness.
+
+    A normal project nested in $HOME, or a project outside $HOME, is mounted
+    whole. If the project is $HOME, contains $HOME, or contains the harness
+    or a credential directory, the project root is not mounted. Only subtrees
+    that contain none of those directories are mounted. Allowlisted harness
+    files are mounted separately.
+    """
+    home_r = Path(home).resolve()
+    harness_r = Path(harness_root).resolve()
+    sensitive = []
+    for name in SECRET_DIRECTORIES:
+        _remember_mask(sensitive, home_r / name)
+    _remember_mask(sensitive, harness_r)
+
+    def walk(path):
+        path = Path(path).resolve()
+        if path == home_r:
+            return
+        if any(_contains(item, path) for item in sensitive):
+            return
+        blocked = list(sensitive) + [home_r]
+        if any(item.is_relative_to(path) for item in blocked):
+            if path.is_dir():
+                for child in sorted(path.iterdir(), key=lambda item: item.name):
+                    yield from walk(child)
+            return
+        yield path
+
+    return list(walk(Path(project_root).resolve()))
+
+
+def _ro_bind(command, source):
+    source = Path(source)
+    if not source.exists():
+        return
+    # Bind the path programs look up, even when it is a symlink.
+    command.extend(["--ro-bind", str(source.resolve()), str(source)])
+
+
+def run_allowlisted(argv, writable_root, *, cwd, timeout=300, env=None,
+                    allow_network=False, project_root, harness_root,
+                    harness_reads=(), diagnostics=None, credential_paths=()):
+    """Run a diagnosis child on an empty root with an explicit mount list.
+
+    Nothing under $HOME, RETRO2_HOME, or the project is visible unless this
+    function mounts it. Credential files are mounted only under a random /tmp
+    directory named by CLAUDE_CONFIG_DIR or CODEX_HOME.
+    """
+    bubblewrap = shutil.which("bwrap")
+    writable_root = Path(writable_root).resolve()
+    if not bubblewrap:
+        raise HostExitError("platform_isolation_unavailable")
+    if not writable_root.is_dir():
+        raise HostExitError("restricted writable root missing")
+    child_env = restricted_environment(env)
+    home = Path(child_env["HOME"]).resolve()
+    harness_root = Path(harness_root).resolve()
+    project_root = Path(project_root).resolve()
+    command = [bubblewrap, "--die-with-parent", "--new-session", "--unshare-all"]
+    if allow_network:
+        command.append("--share-net")
+    command += ["--tmpfs", "/"]
+    for directory in SYSTEM_DIRECTORIES:
+        if Path(directory).is_dir():
+            command += ["--ro-bind", directory, directory]
+    for filename in SYSTEM_FILES:
+        _ro_bind(command, filename)
+    command += ["--tmpfs", "/tmp"]
+    for path in project_mounts(project_root, home, harness_root):
+        command += ["--ro-bind", str(path), str(path)]
+    for path in harness_reads:
+        path = Path(path)
+        if not path.exists():
+            raise HostExitError("allowlisted harness path missing")
+        command += ["--ro-bind", str(path.resolve()), str(path)]
+    if diagnostics is not None and Path(diagnostics).exists():
+        command += ["--ro-bind", str(Path(diagnostics).resolve()), str(diagnostics)]
+    executable = Path(argv[0]) if argv else None
+    if executable is not None and executable.is_file():
+        command += ["--ro-bind", str(executable.resolve()), str(executable)]
+    visible = [writable_root, project_root, harness_root, *_added_directories(argv)]
+    for credential in credential_paths:
+        credential = Path(credential).resolve()
+        if not credential.is_file():
+            continue
+        if credential.is_relative_to(home / ".codex"):
+            dest_dir = _private_auth_dir("retro2-codex-auth-", visible)
+            command += ["--dir", str(dest_dir), "--ro-bind", str(credential), str(dest_dir / "auth.json")]
+            child_env["CODEX_HOME"] = str(dest_dir)
+            continue
+        if credential.is_relative_to(Path(config.RETRO2_HOME).resolve()) or credential.name == ".credentials.json":
+            dest_dir = _private_auth_dir("retro2-claude-auth-", visible)
+            command += ["--dir", str(dest_dir), "--ro-bind", str(credential), str(dest_dir / ".credentials.json")]
+            child_env["CLAUDE_CONFIG_DIR"] = str(dest_dir)
+            child_env["CLAUDE_CREDENTIAL_FILE"] = str(dest_dir / ".credentials.json")
+    command += ["--bind", str(writable_root), str(writable_root), "--proc", "/proc", "--dev", "/dev",
+                "--chdir", str(Path(cwd).resolve()), "--", "/bin/sh", "-c",
+                'printf "R2_CHILD_STARTED\\n"; exec "$@"', "r2-child", *[str(item) for item in argv]]
+    child_env["RETRO2_DIAGNOSIS_SCRATCH"] = str(writable_root)
+    try:
+        result = subprocess.run(command, text=True, capture_output=True, timeout=timeout, check=False,
+                                env=child_env, stdin=subprocess.DEVNULL)
+    except subprocess.TimeoutExpired as error:
+        result = subprocess.CompletedProcess(command, 124, error.stdout or "", error.stderr or "timeout")
     result.child_started = result.stdout.startswith(CHILD_SENTINEL)
     result.stdout = result.stdout[len(CHILD_SENTINEL):] if result.child_started else result.stdout
     result.infrastructure_error = None if result.child_started else "child_start_failed"

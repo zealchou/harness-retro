@@ -19,7 +19,9 @@ import diagnosis_adapter  # noqa: E402
 import evidence_adapter  # noqa: E402
 import experience  # noqa: E402
 import filter_adapter  # noqa: E402
-from host_exits import GitWorktreeHost, HostExitError, run_apply_tests, run_restricted, validation_receipt  # noqa: E402
+from host_exits import (  # noqa: E402
+    GitWorktreeHost, HostExitError, run_allowlisted, run_apply_tests, run_restricted, validation_receipt,
+)
 import rejection_index  # noqa: E402
 from apply import transaction  # noqa: E402
 import config  # noqa: E402
@@ -245,44 +247,45 @@ class PythonStationRunner:
         # The default run directory lives under the harness. Diagnosis keeps its
         # writable files in a scratch directory that is not the repo, the harness,
         # or an --add-dir, so a project that contains the harness cannot read them.
+        # Create it inside the try so a later failure still deletes it.
         scratch = None
-        if kind == "diagnosis" and self._uses_platform_sandbox:
-            scratch = tempfile.TemporaryDirectory(
-                prefix="retro2-diagnosis-scratch-", dir=self._diagnosis_scratch_parent(),
-            )
         codex_io = None
-        if self.backend_key == "codex":
-            if not self.codex:
-                raise RuntimeError("codex executable unavailable")
-            output_root = Path(scratch.name) if scratch is not None else Path(request.get("worktree") or self.run_dir)
-            output_root.mkdir(parents=True, exist_ok=True)
-            codex_io = Path(tempfile.mkdtemp(prefix=".codex-structured-", dir=output_root))
-            schema_path, output_path, empty_root = codex_io / "schema.json", codex_io / "message.json", codex_io / "empty"
-            schema_path.write_text(json.dumps(_strict_schema(schema), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
-            empty_root.mkdir()
-            argv = [self.codex, "exec", "-m", "gpt-6-astra", "-c", "model_reasoning_effort=high", "--json",
-                    "--output-schema", str(schema_path), "-o", str(output_path), "-s", "read-only",
-                    "-C", str(self.repo if read_only_repo else empty_root)]
-            if read_only_repo:
-                argv.extend(["--add-dir", str(self.repo), "--add-dir", str(HOST_HARNESS / "hooks"),
-                             "--add-dir", str(HOST_HARNESS / "scripts/logs"), "--add-dir", str(config.DIAGNOSTICS_DIR)])
-            argv.append(TRUSTED_STATION_PROMPT + "\n" + payload)
-        else:
-            if not self.claude:
-                raise RuntimeError("claude executable unavailable")
-            # --add-dir accepts directories only, and --restricted file tools read
-            # a file only from the working directory or an added directory.
-            # CLAUDE.md and settings.json live in the harness root, so that root
-            # stays added. The credential file is mounted outside it.
-            tools = ["--restricted", "--tools", READ_ONLY_TOOLS, "--allowedTools", READ_ONLY_TOOLS,
-                     "--add-dir", str(self.repo), "--add-dir", str(HOST_HARNESS), "--add-dir", str(config.DIAGNOSTICS_DIR), "--max-budget-usd", "5.00"] if read_only_repo \
-                else ["--tools", "", "--max-budget-usd", "3.00"]
-            argv = [self.claude, "-p", "--safe-mode", *tools,
-                    "--permission-mode", "dontAsk", "--permission-prompts", "none",
-                    "--no-session-persistence", "--output-format", "json",
-                    "--json-schema", json.dumps(schema, ensure_ascii=False, separators=(",", ":")),
-                    "--system-prompt", TRUSTED_STATION_PROMPT, payload]
         try:
+            if kind == "diagnosis" and self._uses_platform_sandbox:
+                scratch = tempfile.TemporaryDirectory(
+                    prefix="retro2-diagnosis-scratch-", dir=self._diagnosis_scratch_parent(),
+                )
+            if self.backend_key == "codex":
+                if not self.codex:
+                    raise RuntimeError("codex executable unavailable")
+                output_root = Path(scratch.name) if scratch is not None else Path(request.get("worktree") or self.run_dir)
+                output_root.mkdir(parents=True, exist_ok=True)
+                codex_io = Path(tempfile.mkdtemp(prefix=".codex-structured-", dir=output_root))
+                schema_path, output_path, empty_root = codex_io / "schema.json", codex_io / "message.json", codex_io / "empty"
+                schema_path.write_text(json.dumps(_strict_schema(schema), ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+                empty_root.mkdir()
+                argv = [self.codex, "exec", "-m", "gpt-6-astra", "-c", "model_reasoning_effort=high", "--json",
+                        "--output-schema", str(schema_path), "-o", str(output_path), "-s", "read-only",
+                        "-C", str(self.repo if read_only_repo else empty_root)]
+                if read_only_repo:
+                    argv.extend(["--add-dir", str(self.repo), "--add-dir", str(HOST_HARNESS / "hooks"),
+                                 "--add-dir", str(HOST_HARNESS / "scripts/logs"), "--add-dir", str(config.DIAGNOSTICS_DIR)])
+                argv.append(TRUSTED_STATION_PROMPT + "\n" + payload)
+            else:
+                if not self.claude:
+                    raise RuntimeError("claude executable unavailable")
+                # --add-dir accepts directories only, and --restricted file tools read
+                # a file only from the working directory or an added directory.
+                # CLAUDE.md and settings.json live in the harness root, so that root
+                # stays added. The credential file is mounted outside it.
+                tools = ["--restricted", "--tools", READ_ONLY_TOOLS, "--allowedTools", READ_ONLY_TOOLS,
+                         "--add-dir", str(self.repo), "--add-dir", str(HOST_HARNESS), "--add-dir", str(config.DIAGNOSTICS_DIR), "--max-budget-usd", "5.00"] if read_only_repo \
+                    else ["--tools", "", "--max-budget-usd", "3.00"]
+                argv = [self.claude, "-p", "--safe-mode", *tools,
+                        "--permission-mode", "dontAsk", "--permission-prompts", "none",
+                        "--no-session-persistence", "--output-format", "json",
+                        "--json-schema", json.dumps(schema, ensure_ascii=False, separators=(",", ":")),
+                        "--system-prompt", TRUSTED_STATION_PROMPT, payload]
             if kind in {"candidate", "diagnosis"} and self._uses_platform_sandbox:
                 worktree = request.get("worktree")
                 if kind == "candidate" and not worktree:
@@ -292,20 +295,22 @@ class PythonStationRunner:
                 credential = config.CODEX_CREDENTIAL_FILE if self.backend_key == "codex" \
                     else config.CLAUDE_CREDENTIAL_FILE
                 writable = scratch.name if scratch is not None else (worktree or self.run_dir)
-                isolated = run_restricted(
-                    argv, writable, cwd=worktree or self.repo, timeout=timeout, allow_network=True,
-                    readonly_roots=(self.repo, *HOST_HARNESS_READS) if kind == "diagnosis" else (),
-                    credential_paths=(credential,))  # relocated outside model read roots; harness stays masked
+                if kind == "diagnosis":
+                    harness_reads = tuple(
+                        path for path in HOST_HARNESS_READS if Path(path) != Path(config.DIAGNOSTICS_DIR)
+                    )
+                    isolated = run_allowlisted(
+                        argv, writable, cwd=self.repo, timeout=timeout, allow_network=True,
+                        project_root=self.repo, harness_root=HOST_HARNESS,
+                        harness_reads=harness_reads, diagnostics=config.DIAGNOSTICS_DIR,
+                        credential_paths=(credential,))
+                else:
+                    isolated = run_restricted(
+                        argv, writable, cwd=worktree or self.run_dir, timeout=timeout, allow_network=True,
+                        credential_paths=(credential,))
                 code, stdout, stderr = isolated.returncode, isolated.stdout, isolated.stderr
             else:
                 code, stdout, stderr = self.command(argv, cwd=self.repo if read_only_repo else None, timeout=timeout)
-        except Exception:
-            if codex_io is not None:
-                shutil.rmtree(codex_io, ignore_errors=True)
-            if scratch is not None:
-                scratch.cleanup()
-            raise
-        try:
             if code:
                 if codex_io is not None:
                     shutil.rmtree(codex_io, ignore_errors=True)

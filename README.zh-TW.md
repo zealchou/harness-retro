@@ -92,7 +92,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 - `PATH` 上有相容的 `claude` CLI；
 - Linux、可用的 `bwrap`，以及允許建立 user namespace 的核心設定。
 
-可選整合：hook-audit 腳本、受管專案索引、語意事故判斷器、Codex 後端與指定的模型憑證檔。找不到可選元件時，程式會記錄清楚的 skip／降級／錯誤原因，不會假裝執行成功。沒有 `bwrap` 時，安全敏感的隔離執行會 fail closed；需要真 namespace 的測試可附原因 skip，但斷言保留。
+可選整合：hook-audit 腳本、受管專案索引、語意事故判斷器、Codex 後端與指定的模型憑證檔。選了 Codex 後端時，Codex 的唯讀沙盒擋的是寫入、不是讀取；`auth.json` 唯讀掛在沙盒 `/tmp` 裡的 `$CODEX_HOME/auth.json`，不是 `~/.codex/auth.json`，`~/.codex` 維持遮住，專案目錄是 `$HOME` 時也一樣。模型若找得到那個 `CODEX_HOME` 路徑，仍讀得到這個檔。Claude 後端不會掛上它。找不到可選元件時，程式會記錄清楚的 skip／降級／錯誤原因，不會假裝執行成功。沒有 `bwrap` 時，安全敏感的隔離執行會 fail closed；需要真 namespace 的測試可附原因 skip，但斷言保留。
 
 ## 設定
 
@@ -115,7 +115,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 | `RETRO2_JUDGE_SCRIPT` | `$RETRO2_HOME/scripts/judge.py` | 可選機率判斷器 |
 | `RETRO2_INCIDENT_EVIDENCE_ROOT` | 倉庫／套件根目錄 | 相對事故證據基準 |
 | `RETRO2_CLAUDE_CREDENTIAL_FILE` | `$RETRO2_HOME/.credentials.json` | Claude 憑證唯讀掛載 |
-| `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | 可選 Codex 憑證唯讀掛載 |
+| `RETRO2_CODEX_CREDENTIAL_FILE` | `~/.codex/auth.json` | 來源檔。沙盒把它唯讀掛到 `/tmp` 上的 `CODEX_HOME`，不是這個路徑 |
 | `RETRO2_GATE_LOGS` | host log 與診斷目錄 | 以 `:` 分隔的證據路徑 |
 | `RETRO2_CLAUDE_COMMAND` | `claude` | Claude 執行命令 |
 | `RETRO2_CODEX_COMMAND` | `codex` | 可選 Codex 執行命令 |
@@ -149,7 +149,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 skill 裝起來比較快，直接在 Claude Code 裡跑。harness-retro 要 Linux 和 bubblewrap，但每一種改法都先隔離測試，你的批准綁定在確切的補丁上，而且留有收據可以還原。詳見上方「跟 `/retro` 類 skill 有什麼不同」。
 
 **它會把我的程式碼或對話紀錄傳到別的地方嗎？要花多少錢？**  
-會，傳給你自己帳號下的 Claude。使用預設的 Claude 後端時，harness-retro 會把這段對話裡你最近打的最多 30 則訊息（每則最多 1,500 字）透過你自己的 `claude -p` 指令送給模型，模型也可以唯讀讀取你的專案、`~/.claude` 或 `RETRO2_HOME` 的一部分（`CLAUDE.md`、`settings.json`、`hooks` 和 `scripts/logs`），以及診斷目錄（預設是 `/tmp/retro2-diagnostics`），但不能修改。harness-retro 本身不回傳任何使用資料，也不會把資料送給作者。它用你自己的 Claude 額度，每次呼叫模型內建 3 或 5 美元的花費上限。候選改法的測試在 bubblewrap 沙盒裡進行，網路是關掉的。
+會，傳給你自己帳號下的 Claude。使用預設的 Claude 後端時，harness-retro 會把這段對話裡你最近打的最多 30 則訊息（每則最多 1,500 字）透過你自己的 `claude -p` 指令送給模型，模型也可以唯讀讀取你的專案、`~/.claude` 或 `RETRO2_HOME` 的一部分（`CLAUDE.md`、`settings.json`、`hooks` 和 `scripts/logs`），以及診斷目錄（預設是 `/tmp/retro2-diagnostics`），但不能修改。harness-retro 本身不回傳任何使用資料，也不會把資料送給作者。它用你自己的 Claude 額度，每次呼叫模型內建 3 或 5 美元的花費上限。候選改法的測試在 bubblewrap 沙盒裡進行，網路是關掉的。診斷從空的檔案系統開始，只掛上不含家目錄或工具目錄的專案、上面列出的工具檔、診斷目錄、CLI 的系統程式庫、一個暫存目錄，以及一份憑證檔。家目錄裡其他地方的檔案不會被掛上。若專案目錄就是家目錄或就是工具目錄，那棵樹裡掛上的只有列出的工具檔。Claude 憑證唯讀掛在沙盒 `/tmp` 的 `CLAUDE_CONFIG_DIR` 底下，不是原本的路徑。Claude 後端不會掛上 Codex 的 `auth.json`。選了 Codex 後端時，Codex 的唯讀沙盒擋的是寫入、不是讀取。`auth.json` 唯讀掛在同一個 `/tmp` 裡的 `$CODEX_HOME/auth.json`，不是 `~/.codex/auth.json`，專案目錄是 `$HOME` 時也一樣。模型若找得到那個 `CODEX_HOME` 路徑，仍讀得到這個檔。
 
 **我是中小企業老闆、不會寫程式，這個適合我嗎？**  
 不直接適合：這是給 Linux 開發者用的工具。但背後的做法任何用 AI 助手的團隊都用得上：AI 做錯時留下證據、先測試改法、由人批准後才變成規則。可以把這個專案轉給負責你們 AI 工具的工程師看。

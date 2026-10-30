@@ -96,7 +96,7 @@ class ModelBackendTests(unittest.TestCase):
                       "controller_entry": "retro2/controller/run.py", "repo_root": str(repo)}
             runner = station_host.PythonStationRunner(ticket, Path(directory) / "runs", codex="fake-codex")
             completed = subprocess.CompletedProcess(["bwrap"], 0, "", "")
-            with mock.patch.object(station_host, "run_restricted", return_value=completed) as restricted:
+            with mock.patch.object(station_host, "run_allowlisted", return_value=completed) as restricted:
                 with self.assertRaises(RuntimeError):
                     runner._structured("diagnosis", {}, read_only_repo=True)
             credentials = restricted.call_args.kwargs["credential_paths"]
