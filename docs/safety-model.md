@@ -2,7 +2,7 @@
 
 ## Threat model
 
-retro-2 assumes that transcripts, external content, tool output, model output, and candidate patches may be mistaken or adversarial. It also assumes a well-intentioned operator can approve the wrong revision if approval is not bound to a digest.
+harness-retro assumes that transcripts, external content, tool output, model output, and candidate patches may be mistaken or adversarial. It also assumes a well-intentioned operator can approve the wrong revision if approval is not bound to a digest.
 
 It does not claim to defend against a malicious host administrator, a compromised Python interpreter, or a hostile kernel.
 

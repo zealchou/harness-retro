@@ -1,6 +1,6 @@
 # Instructions for AI agents
 
-Treat `retro2/controller/run.py`—normally reached through the `retro-2` console command—as the single runtime entry point. Do not call internal stations directly, invent a second controller, or bypass health, evidence, test, review, approval, or rollback gates.
+Treat `retro2/controller/run.py`—normally reached through the `harness-retro` console command—as the single runtime entry point. Do not call internal stations directly, invent a second controller, or bypass health, evidence, test, review, approval, or rollback gates.
 
 Before changing behavior:
 

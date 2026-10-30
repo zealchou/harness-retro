@@ -2,15 +2,15 @@
 
 ## Purpose and boundary
 
-retro-2 converts retrospective evidence into tested candidate patches without treating model output as authorization. The controller owns orchestration; adapters are deliberately narrow and do not call one another to skip stages.
+harness-retro converts retrospective evidence into tested candidate patches without treating model output as authorization. The controller owns orchestration; adapters are deliberately narrow and do not call one another to skip stages.
 
 ## Single entry point
 
-The installed `retro-2` command delegates to `retro2/controller/run.py`. No secondary entry point may invoke controller internals directly. Manual enqueue, pressure-triggered enqueue, detached workers, saved-run application, and maintenance all return to this boundary.
+The installed `harness-retro` command delegates to `retro2/controller/run.py`. No secondary entry point may invoke controller internals directly. Manual enqueue, pressure-triggered enqueue, detached workers, saved-run application, and maintenance all return to this boundary.
 
 ```mermaid
 flowchart TD
-    CLI[retro-2 CLI] --> CTRL[controller/run.py]
+    CLI[harness-retro CLI] --> CTRL[controller/run.py]
     GAUGE[optional context gauge] --> Q[atomic queue]
     Q --> W[detached worker]
     W --> CTRL

@@ -6,7 +6,7 @@ The maintainer's work order for this repository is the source of truth. It requi
 
 ## What is being built
 
-An installable, issue-ready open-source edition of the retro-2 safety workflow, with centralized configuration, synthetic incident examples, tests, CI, contributor materials, and honest optional-dependency degradation.
+An installable, issue-ready open-source edition of the harness-retro safety workflow, with centralized configuration, synthetic incident examples, tests, CI, contributor materials, and honest optional-dependency degradation.
 
 ## Executable definition of done
 

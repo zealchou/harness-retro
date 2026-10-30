@@ -1,8 +1,8 @@
-# retro-2
+# harness-retro
 
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5) ![Status](https://img.shields.io/badge/status-maintainer%20review-orange)
 
-**retro-2 is a safety-gated retrospective workflow that lets Claude Code find mistakes in its own conversation history, propose three fixes, test them in isolation, pass four reviews, and wait for a human before changing the real repository.**
+**harness-retro is a safety-gated retrospective workflow that lets Claude Code find mistakes in its own conversation history, propose three fixes, test them in isolation, pass four reviews, and wait for a human before changing the real repository.**
 
 [繁體中文](README.zh-TW.md) · [Architecture](docs/architecture.md) · [Safety model](docs/safety-model.md) · [Writing incidents](docs/writing-incidents.md)
 
@@ -10,7 +10,7 @@
 
 ## Why
 
-Agent retrospectives often stop at prose: a model explains what went wrong, but there is no replayable evidence, no isolated candidate, and no binding between approval and the exact patch. retro-2 turns that reflection into a conservative pipeline:
+Agent retrospectives often stop at prose: a model explains what went wrong, but there is no replayable evidence, no isolated candidate, and no binding between approval and the exact patch. harness-retro turns that reflection into a conservative pipeline:
 
 - evidence is separated from instructions;
 - three candidates compete against the same baseline;
@@ -50,19 +50,19 @@ Read [Safety model](docs/safety-model.md) before enabling the hook.
 ## Quick start
 
 ```bash
-git clone <repository-url>
-cd retro-2
+git clone https://github.com/zealchou/harness-retro.git
+cd harness-retro
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e ".[test]"
-retro-2 --help
+harness-retro --help
 python -m pytest -q
 ```
 
 Queue a manual retrospective from the Git repository you want to inspect:
 
 ```bash
-retro-2 enqueue \
+harness-retro enqueue \
   --session-id manual \
   --transcript-path /path/to/a/transcript.jsonl
 ```
@@ -121,7 +121,7 @@ All portable filesystem defaults live in `retro2/config.py`.
 | `RETRO2_CONTEXT_WINDOW` | `800000` | Context gauge denominator |
 | `CLAUDE_TRANSCRIPT_PATH` | unset | One-run transcript override |
 
-Standard model endpoint variables may be inherited by the selected CLI, but retro-2 never stores their values in its repository or reports.
+Standard model endpoint variables may be inherited by the selected CLI, but harness-retro never stores their values in its repository or reports.
 
 ## Build your own incident bank
 
@@ -138,7 +138,7 @@ The bundled 12 incidents are synthetic teaching fixtures. Each points to a synth
 
 ## FAQ
 
-**Does retro-2 rewrite itself automatically?**  
+**Does harness-retro rewrite itself automatically?**  
 No. The shipped policy is report-only and requires explicit human approval for a named, digest-bound candidate.
 
 **Why exactly three candidates?**  

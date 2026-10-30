@@ -28,7 +28,7 @@ jobs:
       - name: Clean-home CLI smoke test
         run: |
           clean_home="$(mktemp -d)"
-          HOME="$clean_home" retro-2 --help
+          HOME="$clean_home" harness-retro --help
           touch "$clean_home/transcript.jsonl"
-          HOME="$clean_home" retro-2 enqueue --session-id ci-smoke --transcript-path "$clean_home/transcript.jsonl"
+          HOME="$clean_home" harness-retro enqueue --session-id ci-smoke --transcript-path "$clean_home/transcript.jsonl"
 

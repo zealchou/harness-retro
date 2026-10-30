@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for helping make retro-2 safer and more portable.
+Thank you for helping make harness-retro safer and more portable.
 
 ## Before opening a pull request
 

@@ -1,8 +1,8 @@
-# retro-2
+# harness-retro
 
 ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5) ![Status](https://img.shields.io/badge/status-maintainer%20review-orange)
 
-**retro-2 是一套有安全閘門的回顧工作流：讓 Claude Code 從自己的對話紀錄找出失誤、提出三個候選改法、隔離測試、通過四類審查，最後等人明確批准才改正式倉庫。**
+**harness-retro 是一套有安全閘門的回顧工作流：讓 Claude Code 從自己的對話紀錄找出失誤、提出三個候選改法、隔離測試、通過四類審查，最後等人明確批准才改正式倉庫。**
 
 [English](README.md) · [架構](docs/architecture.md) · [安全模型](docs/safety-model.md) · [撰寫事故題庫](docs/writing-incidents.md)
 
@@ -10,7 +10,7 @@
 
 ## 為什麼需要它
 
-常見的 agent 回顧只停在文字反省：模型說明哪裡錯了，卻沒有可重播證據、隔離候選，也沒有把人的核准綁到確切補丁。retro-2 把反省收斂成保守管線：
+常見的 agent 回顧只停在文字反省：模型說明哪裡錯了，卻沒有可重播證據、隔離候選，也沒有把人的核准綁到確切補丁。harness-retro 把反省收斂成保守管線：
 
 - 證據與指令分開；
 - 三個候選在同一基準競爭；
@@ -34,7 +34,7 @@ flowchart LR
     A -. 只提建議 .-> M[maintenance]
 ```
 
-唯一 controller 入口是 `retro2/controller/run.py`，一般透過 `retro-2` 指令使用。完整資料流與 `ALL_STATIONS` 對照見[架構文件](docs/architecture.md)。
+唯一 controller 入口是 `retro2/controller/run.py`，一般透過 `harness-retro` 指令使用。完整資料流與 `ALL_STATIONS` 對照見[架構文件](docs/architecture.md)。
 
 ## 安全模型
 
@@ -50,19 +50,19 @@ flowchart LR
 ## 快速開始
 
 ```bash
-git clone <repository-url>
-cd retro-2
+git clone https://github.com/zealchou/harness-retro.git
+cd harness-retro
 python3 -m venv .venv
 . .venv/bin/activate
 python -m pip install -e ".[test]"
-retro-2 --help
+harness-retro --help
 python -m pytest -q
 ```
 
 在要檢查的 Git 倉庫中手動排入：
 
 ```bash
-retro-2 enqueue \
+harness-retro enqueue \
   --session-id manual \
   --transcript-path /path/to/a/transcript.jsonl
 ```
@@ -113,7 +113,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 | `RETRO2_CONTEXT_WINDOW` | `800000` | context gauge 分母 |
 | `CLAUDE_TRANSCRIPT_PATH` | 未設定 | 單次逐字稿覆寫 |
 
-選定的 CLI 可能繼承標準模型端點變數；retro-2 不會把它們的值寫進倉庫或報告。
+選定的 CLI 可能繼承標準模型端點變數；harness-retro 不會把它們的值寫進倉庫或報告。
 
 ## 建立自己的事故題庫
 

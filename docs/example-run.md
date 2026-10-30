@@ -42,5 +42,5 @@ The rerun produced:
 
 The maintainer inspected the patch and report, then explicitly approved candidate A for that run. The transaction verified the baseline and protected assets, applied one commit, ran a fresh canary, and wrote a receipt binding the approval to the patch.
 
-Had the canary failed, retro-2 would have created a revert commit and verified restoration. The important outcome is not that A eventually won; it is that the first plausible A was blocked, new evidence changed the candidate, and only the newly reviewed digest could be approved.
+Had the canary failed, harness-retro would have created a revert commit and verified restoration. The important outcome is not that A eventually won; it is that the first plausible A was blocked, new evidence changed the candidate, and only the newly reviewed digest could be approved.
 

@@ -38,6 +38,6 @@
 - **What:** verified zero remotes and attempted the authorized final `git add -A` before the one requested commit.
 - **Evidence:** Git returned `Unable to create .git/index.lock: Read-only file system`; the environment exposes repository metadata read-only even though the working tree is writable.
 - **Blocked or unfinished:** the single local commit cannot be created in this environment. All deliverable files remain present as untracked working-tree content; no remote was configured and nothing was pushed.
-- **Next:** rerun `git add -A && git commit -m "Prepare retro-2 open-source review candidate"` once `.git` is writable, then rerun `python3 -m pytest -q`.
+- **Next:** rerun `git add -A && git commit -m "Prepare harness-retro open-source review candidate"` once `.git` is writable, then rerun `python3 -m pytest -q`.
 
 
