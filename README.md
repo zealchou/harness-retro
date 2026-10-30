@@ -97,7 +97,7 @@ Optional integrations:
 - hook-audit script (`RETRO2_HOOK_AUDIT_SCRIPT`): missing means the health report records a degraded, skipped optional check;
 - managed-project index (`RETRO2_MANAGED_PROJECTS_FILE`): missing limits experience lookup to the current target;
 - probability judge (`RETRO2_JUDGE_SCRIPT`): missing returns an explicit optional-component error instead of guessing;
-- Codex backend (`RETRO2_MODEL_BACKEND=codex`): disabled until a host-side credential broker ships. Selecting it fails closed (`Codex backend is disabled until the host-side credential broker ships; see docs/sandbox-allowlist.md#follow-up-credential-broker`). No Codex `auth.json` is copied or mounted. Diagnosis, candidate generation, and apply each use the empty-root allow-list. The candidate worktree is read-write. Apply mounts the subject read-only, keeps network off, and does not start a model;
+- Codex backend (`RETRO2_MODEL_BACKEND=codex`): disabled until a host-side credential broker ships. Selecting it fails closed (`Codex backend is disabled until the host-side credential broker ships; see docs/sandbox-allowlist.md#follow-up-credential-broker`). No Codex `auth.json` is copied or mounted. Diagnosis, candidate generation, and apply each use the empty-root allow-list. The candidate worktree is read-write. Apply mounts the subject read-only, keeps network off, and does not start a model. Claude's login credential file is still mounted read-only inside the sandbox (under /tmp as CLAUDE_CONFIG_DIR); this is a known residual risk until the key broker lands;
 - credentials specified by file path for an approved model endpoint.
 
 Without `bwrap`, safety-sensitive isolated execution fails closed. Tests that specifically require an available namespace skip with their reason; the assertions remain in the suite.
@@ -111,7 +111,7 @@ All portable filesystem defaults live in `retro2/config.py`.
 | `RETRO2_HOME` | `~/.claude` | Host harness root |
 | `RETRO2_STATE_DIR` | `$RETRO2_HOME/retro-2` | Runtime state root |
 | `RETRO2_QUEUE_DIR` | `$RETRO2_STATE_DIR/queue` | Queue and pressure state |
-| `RETRO2_RUNS_DIR` | `$RETRO2_STATE_DIR/runs` | Run artifacts and receipts |
+| `RETRO2_RUNS_DIR` | `$XDG_STATE_HOME/harness-retro/runs` (`~/.local/state/harness-retro/runs` when unset) | Run artifacts, candidate worktrees, and apply scratch. Outside the harness so those directories can be mounted |
 | `RETRO2_MAINTENANCE_DIR` | `$RETRO2_STATE_DIR/maintenance/manual` | Advisory maintenance reports |
 | `RETRO2_TRANSCRIPTS_DIR` | `$RETRO2_HOME/projects` | Default transcript lookup |
 | `RETRO2_USAGE_DATA_DIR` | `$RETRO2_HOME/usage-data` | Optional usage evidence |

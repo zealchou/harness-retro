@@ -63,7 +63,7 @@ The main execution slice is the first seven values. `maintenance` is advisory-on
 
 ## Configuration and runtime state
 
-`retro2/config.py` is the one source for portable filesystem defaults. Runtime state belongs under `RETRO2_STATE_DIR`; it is ignored by Git. Synthetic public examples live under `examples/`, never in runtime state.
+`retro2/config.py` is the one source for portable filesystem defaults. Queue state belongs under `RETRO2_STATE_DIR`. Run artifacts, candidate worktrees, and apply scratch default to `$XDG_STATE_HOME/harness-retro/runs` so they are not inside the harness. Synthetic public examples live under `examples/`, never in runtime state.
 
 The optional integrations—hook audit, managed-project list, probability judge, diagnostics, and Codex backend—are leaves. The probability judge is configured by `RETRO2_JUDGE_SCRIPT` and consumes each incident's `judge_question`. Missing leaves must yield a specific skip, degradation, or error and must not change the seven-stage order.
 

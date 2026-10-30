@@ -92,7 +92,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 - `PATH` 上有相容的 `claude` CLI；
 - Linux、可用的 `bwrap`，以及允許建立 user namespace 的核心設定。
 
-可選整合：hook-audit 腳本、受管專案索引、語意事故判斷器。Codex 後端已停用，要等 host-side credential broker（`docs/sandbox-allowlist.md#follow-up-credential-broker`）。設 `RETRO2_MODEL_BACKEND=codex` 會 fail closed，不會複製或掛上 Codex 的 `auth.json`。診斷、候選與套用都用同一份空白根目錄允許清單：候選工作目錄可寫，家目錄的其他部分不會掛上。套用階段把受測目錄唯讀掛上、暫存目錄可寫、不開網路、不啟動模型。找不到可選元件時，程式會記錄清楚的 skip／降級／錯誤原因，不會假裝執行成功。沒有 `bwrap` 時，安全敏感的隔離執行會 fail closed；需要真 namespace 的測試可附原因 skip，但斷言保留。
+可選整合：hook-audit 腳本、受管專案索引、語意事故判斷器。Codex 後端已停用，要等 host-side credential broker（`docs/sandbox-allowlist.md#follow-up-credential-broker`）。設 `RETRO2_MODEL_BACKEND=codex` 會 fail closed，不會複製或掛上 Codex 的 `auth.json`。診斷、候選與套用都用同一份空白根目錄允許清單：候選工作目錄可寫，家目錄的其他部分不會掛上。套用階段把受測目錄唯讀掛上、暫存目錄可寫、不開網路、不啟動模型。Claude 的登入檔仍以唯讀方式掛在沙盒 /tmp 的 CLAUDE_CONFIG_DIR，這是殘餘風險，等鑰匙代管上線後移除。找不到可選元件時，程式會記錄清楚的 skip／降級／錯誤原因，不會假裝執行成功。沒有 `bwrap` 時，安全敏感的隔離執行會 fail closed；需要真 namespace 的測試可附原因 skip，但斷言保留。
 
 ## 設定
 
@@ -103,7 +103,7 @@ queue 對同一個 session／壓力週期具冪等性。背景 worker 會寫 hea
 | `RETRO2_HOME` | `~/.claude` | host harness 根目錄 |
 | `RETRO2_STATE_DIR` | `$RETRO2_HOME/retro-2` | 執行狀態根目錄 |
 | `RETRO2_QUEUE_DIR` | `$RETRO2_STATE_DIR/queue` | queue 與壓力狀態 |
-| `RETRO2_RUNS_DIR` | `$RETRO2_STATE_DIR/runs` | run 產物與收據 |
+| `RETRO2_RUNS_DIR` | `$XDG_STATE_HOME/harness-retro/runs`（未設定時是 `~/.local/state/harness-retro/runs`） | run 產物、候選工作目錄與套用暫存。放在工具目錄外面，那些目錄才掛得上 |
 | `RETRO2_MAINTENANCE_DIR` | `$RETRO2_STATE_DIR/maintenance/manual` | 淘汰建議報告 |
 | `RETRO2_TRANSCRIPTS_DIR` | `$RETRO2_HOME/projects` | 預設逐字稿目錄 |
 | `RETRO2_USAGE_DATA_DIR` | `$RETRO2_HOME/usage-data` | 可選使用紀錄證據 |

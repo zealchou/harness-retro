@@ -128,9 +128,9 @@ def _forbidden_mount(path, home, harness, *, named_ok=False):
     return False
 
 
-def _private_auth_dir(prefix, visible):
+def _private_auth_dir(prefix, visible, namespace=None):
     """A /tmp directory that is not inside a path the model is allowed to read."""
-    dest_dir = Path("/tmp") / (prefix + secrets.token_hex(8))
+    dest_dir = Path("/tmp") / (prefix + (namespace or secrets.token_hex(8)))
     visible = [_absolute(path) for path in visible]
     if any(dest_dir == path or _inside(dest_dir, path) or _inside(path, dest_dir) for path in visible):
         raise HostExitError("credential mount overlaps a model-visible root")
@@ -320,11 +320,11 @@ def _ro_bind(command, path, home, harness, *, named_ok=False):
     return checked
 
 
-def run_allowlisted(argv, writable_root, *, cwd, timeout=300, env=None,
-                    allow_network=False, profile="diagnosis",
-                    project_root=None, harness_root=None,
-                    harness_reads=(), diagnostics=None, credential_paths=(),
-                    subject_root=None):
+def build_allowlisted_argv(argv, writable_root, *, cwd, env=None,
+                           allow_network=False, profile="diagnosis",
+                           project_root=None, harness_root=None,
+                           harness_reads=(), diagnostics=None, credential_paths=(),
+                           subject_root=None, runtime_argv=None, credential_namespace=None):
     """Run a child on an empty root. ``profile`` is diagnosis, candidate, or apply.
 
     Diagnosis mounts the project read-only, the named harness files, diagnostics,
@@ -382,7 +382,11 @@ def run_allowlisted(argv, writable_root, *, cwd, timeout=300, env=None,
         subject = _assert_no_symlink(subject_root)
         if subject != writable:
             _ro_bind(command, subject, home, harness)
-    runtime_mounts, argv = _runtime_mounts(argv, home)
+    executed = [str(item) for item in argv]
+    mount_argv = runtime_argv if runtime_argv is not None else argv
+    runtime_mounts, rewritten = _runtime_mounts(mount_argv, home)
+    if runtime_argv is None:
+        executed = rewritten
     for path in runtime_mounts:
         command += ["--ro-bind", str(path), str(path)]
     visible = [writable, work, harness, *_added_directories(argv)]
@@ -400,7 +404,7 @@ def run_allowlisted(argv, writable_root, *, cwd, timeout=300, env=None,
         if not credential.is_file():
             continue
         if credential.name == ".credentials.json":
-            dest_dir = _private_auth_dir("retro2-claude-auth-", visible)
+            dest_dir = _private_auth_dir("retro2-claude-auth-", visible, credential_namespace)
             command += ["--dir", str(dest_dir), "--ro-bind", str(credential), str(dest_dir / ".credentials.json")]
             child_env["CLAUDE_CONFIG_DIR"] = str(dest_dir)
             child_env["CLAUDE_CREDENTIAL_FILE"] = str(dest_dir / ".credentials.json")
@@ -410,17 +414,33 @@ def run_allowlisted(argv, writable_root, *, cwd, timeout=300, env=None,
         command += ["--setenv", key, value]
     command += ["--bind", str(writable), str(writable), "--proc", "/proc", "--dev", "/dev",
                 "--chdir", str(work), "--", "/bin/sh", "-c",
-                'printf "R2_CHILD_STARTED\\n"; exec "$@"', "r2-child", *[str(item) for item in argv]]
+                'printf "R2_CHILD_STARTED\\n"; exec "$@"', "r2-child", *executed]
+    return command
+
+
+def run_allowlisted(argv, writable_root, *, cwd, timeout=300, env=None,
+                    allow_network=False, profile="diagnosis",
+                    project_root=None, harness_root=None,
+                    harness_reads=(), diagnostics=None, credential_paths=(),
+                    subject_root=None, runtime_argv=None, credential_namespace=None):
+    """Spawn the command from `build_allowlisted_argv` and record that argv."""
+    command = build_allowlisted_argv(
+        argv, writable_root, cwd=cwd, env=env, allow_network=allow_network, profile=profile,
+        project_root=project_root, harness_root=harness_root, harness_reads=harness_reads,
+        diagnostics=diagnostics, credential_paths=credential_paths, subject_root=subject_root,
+        runtime_argv=runtime_argv, credential_namespace=credential_namespace,
+    )
     try:
         result = subprocess.run(
             command, text=True, capture_output=True, timeout=timeout, check=False,
-            env=child_env, stdin=subprocess.DEVNULL, close_fds=True, pass_fds=(),
+            env=restricted_environment(env), stdin=subprocess.DEVNULL, close_fds=True, pass_fds=(),
         )
     except subprocess.TimeoutExpired as error:
         result = subprocess.CompletedProcess(command, 124, error.stdout or "", error.stderr or "timeout")
     result.child_started = result.stdout.startswith(CHILD_SENTINEL)
     result.stdout = result.stdout[len(CHILD_SENTINEL):] if result.child_started else result.stdout
     result.infrastructure_error = None if result.child_started else "child_start_failed"
+    result.sandbox_argv = list(command)
     return result
 
 
