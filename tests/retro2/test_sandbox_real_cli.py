@@ -16,6 +16,22 @@ sys.path.insert(0, str(ROOT / "retro2"))
 host_exits = importlib.import_module("host_exits")
 
 CLAUDE = Path("/var/tmp/cli-prefix/bin/claude")
+LOGGED_IN_READ_NOTE = """
+## Real Read tool run
+
+Executed on a logged-in machine at `f942d1b2` (Claude Code 2.1.314, bubblewrap 0.12.0), inside `run_allowlisted` profile `diagnosis`, with `--model haiku` and `--max-budget-usd 1.00`. Session exit 0. No credential body and no canary (`SYNTHETIC-*`, `CANARY-HOME`) appeared in any tool result.
+
+| Check | Expected | Actual | Verdict |
+|---|---|---|---|
+| Allow-listed project file | READ_OK | READ_OK | PASS |
+| Host `~/.claude/.credentials.json` | READ_FAIL | File does not exist | PASS |
+| Host `~/.ssh` | READ_FAIL | File does not exist | PASS |
+| Synthetic `id_ed25519` in the throwaway HOME | READ_FAIL | File does not exist | PASS |
+| Host `~/.codex/auth.json` | READ_FAIL | File does not exist | PASS |
+| Repo symlink into HOME | READ_FAIL | File does not exist | PASS |
+
+The repo test without `--model` failed on that machine because the default model exceeded the $1 budget. This branch pins `--model haiku` and keeps the $1 cap. The relocated Claude credential under `/tmp` was not probed.
+""".strip()
 PROBE = textwrap.dedent(
     """\
     import json, os
@@ -213,6 +229,8 @@ class RealClaudeSandboxTests(unittest.TestCase):
                 "The Read tool was not invoked, and this result is not a pass."
             )
             header.append("")
+            header.append(LOGGED_IN_READ_NOTE)
+            header.append("")
             existing = destination.read_text(encoding="utf-8") if destination.is_file() else "# Real CLI sandbox verification\n"
             destination.write_text(existing.rstrip() + "\n" + "\n".join(header) + "\n", encoding="utf-8")
             self.skipTest("no Claude login available; Read tool was not invoked")
@@ -257,7 +275,7 @@ class RealClaudeSandboxTests(unittest.TestCase):
                 argv = [
                     str(CLAUDE), "-p", prompt, "--tools", "Read", "--allowedTools", "Read",
                     "--permission-mode", "dontAsk", "--permission-prompts", "none",
-                    "--add-dir", str(project), "--max-budget-usd", "1.00",
+                    "--add-dir", str(project), "--max-budget-usd", "1.00", "--model", "haiku",
                 ]
                 result = host_exits.run_allowlisted(
                     argv, project, cwd=project, timeout=120, profile="diagnosis",
@@ -278,6 +296,8 @@ class RealClaudeSandboxTests(unittest.TestCase):
                 else:
                     self.assertNotIn(nonce, text)
                     self.assertTrue(verdict == "READ_FAIL" or result.returncode != 0, label)
+            log.append("")
+            log.append(LOGGED_IN_READ_NOTE)
             log.append("")
             existing = destination.read_text(encoding="utf-8") if destination.is_file() else ""
             destination.write_text(existing.rstrip() + "\n" + "\n".join(log) + "\n", encoding="utf-8")

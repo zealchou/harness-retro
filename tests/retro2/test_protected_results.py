@@ -56,6 +56,10 @@ class ProtectedResultsTests(unittest.TestCase):
         self.assertIn(expected / "objects", roots)
         self.assertIn(expected / "refs", roots)
 
+    @unittest.skipUnless(
+        (Path.home() / ".claude" / ".git").is_dir(),
+        "host ~/.claude/.git is absent; this test needs a git checkout of the harness on this machine",
+    )
     def test_host_main_checkout_git_metadata_is_recognized_when_dotgit_is_a_directory(self):
         expected = (Path.home() / ".claude/.git").resolve()
         roots = station_host.PythonStationRunner._git_metadata_roots(Path.home() / ".claude")
