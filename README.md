@@ -1,12 +1,12 @@
 # harness-retro
 
-[![CI](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml/badge.svg)](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5) ![Status](https://img.shields.io/badge/status-maintainer%20review-orange)
+> It tests every fix in a sandbox before it asks for your approval.
+
+[![CI](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml/badge.svg)](https://github.com/zealchou/harness-retro/actions/workflows/ci.yml) ![Python](https://img.shields.io/badge/Python-3.11%20%7C%203.12-3776AB) ![Platform](https://img.shields.io/badge/isolation-Linux%20bubblewrap-4C8BF5)
 
 **harness-retro is a safety-gated retrospective workflow that lets Claude Code find mistakes in its own conversation history, propose three fixes, test them in isolation, pass four reviews, and wait for a human before changing the real repository.**
 
 [繁體中文](README.zh-TW.md) · [Architecture](docs/architecture.md) · [Safety model](docs/safety-model.md) · [Writing incidents](docs/writing-incidents.md)
-
-> This repository is a pre-publication maintainer-review candidate. Do not treat it as production-ready.
 
 ## Why
 
@@ -18,6 +18,18 @@ Agent retrospectives often stop at prose: a model explains what went wrong, but 
 - protected assets cannot be proposed for automatic change;
 - application requires explicit approval for one exact candidate;
 - receipts make rollback and later rejection auditable.
+
+## How it differs from a `/retro` skill
+
+Skill-based retros such as [craftwork-design/retro](https://github.com/craftwork-design/retro) or [netresearch/retro-skill](https://github.com/netresearch/retro-skill) install in seconds and run inside Claude Code. They are a good fit when you want quick notes and rule suggestions.
+
+harness-retro is heavier on purpose: it needs Python, Git, Linux and bubblewrap. In return:
+
+- each of three candidate fixes is tested in a disposable sandbox before any review;
+- your approval is bound to the exact patch digest, so a changed patch needs a new approval;
+- an applied fix is recorded with a receipt and can be rolled back.
+
+Choose a skill for lightweight reflection. Choose harness-retro when you want every change to your agent's rules to be tested and auditable.
 
 ## How it works
 
@@ -138,6 +150,18 @@ The bundled 12 incidents are synthetic teaching fixtures. Each points to a synth
 
 ## FAQ
 
+**How can I make Claude Code repeat the same mistake less often?**  
+Turn the correction into a rule or a test, not just a chat message. harness-retro helps with this: it reads the session where you corrected the agent, looks for the cause, drafts three fixes to your rule files (such as CLAUDE.md) or tests, tests each one in a sandbox, and waits for you to approve one.
+
+**How is harness-retro different from a `/retro` skill?**  
+A skill is faster to install and runs inside Claude Code. harness-retro needs Linux and bubblewrap, but it tests every candidate fix in isolation, binds your approval to the exact patch, and keeps a receipt for rollback. See "How it differs from a `/retro` skill" above.
+
+**Does it send my code or transcripts anywhere, and what does it cost?**  
+Yes, to your own Claude account. With the default Claude backend, harness-retro sends up to the 30 most recent messages you typed in the session (each cut to 1,500 characters) to the model through your own `claude -p` CLI, and the model can read, but not change, your repository and parts of `~/.claude` (`CLAUDE.md`, `settings.json`, `hooks`, and `scripts/logs`). harness-retro has no telemetry of its own and sends nothing to its authors. It uses your own Claude quota, and each model call has a built-in spending cap of US$3 or US$5. Candidate tests run in a bubblewrap sandbox with network access turned off.
+
+**I run a small business and don't write code. Is this for me?**  
+Not directly: it is a developer tool for Linux. The idea still applies to any team using AI assistants: when the assistant gets something wrong, keep the evidence, test the fix, and let a person approve it before it becomes a rule. Share this repository with the engineer who runs your AI tools.
+
 **Does harness-retro rewrite itself automatically?**  
 No. The shipped policy is report-only and requires explicit human approval for a named, digest-bound candidate.
 
@@ -153,7 +177,6 @@ They are installation-specific integrations. The portable core reports their abs
 ## Roadmap
 
 - Validate the workflow on a broader, consented incident set.
-- Define and adopt a maintainer-approved license.
 - Add portable isolation backends without weakening the Linux baseline.
 - Version CLI/model compatibility and improve diagnostic error messages.
 - Add a supported private disclosure contact and public release checklist.
