@@ -25,6 +25,29 @@ SECRET_DIRECTORIES = (".ssh", ".aws", ".gnupg", ".config/gh", ".docker", ".kube"
 CHILD_SENTINEL = "R2_CHILD_STARTED\n"
 
 
+def _cover_with_tmpfs(command, path, covered):
+    """Hide one existing directory. Skip paths an earlier tmpfs already covers."""
+    path = Path(path).resolve()
+    if path == Path("/") or not path.is_dir():
+        return
+    if any(path == item or path.is_relative_to(item) for item in covered):
+        return
+    command.extend(["--tmpfs", str(path)])
+    covered.add(path)
+
+
+def _added_directories(argv):
+    found = []
+    index = 0
+    while index < len(argv):
+        if argv[index] == "--add-dir" and index + 1 < len(argv):
+            found.append(Path(argv[index + 1]).resolve())
+            index += 2
+            continue
+        index += 1
+    return found
+
+
 def restricted_environment(source=None):
     source = os.environ if source is None else source
     env = {key: source[key] for key in CHILD_ENVIRONMENT if source.get(key)}
@@ -78,10 +101,13 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
     child_env = restricted_environment(env)
     home = Path(child_env["HOME"]).resolve()
     credentials = [Path(path).resolve() for path in credential_paths]
-    # 根目錄唯讀時 bwrap 無法替不存在的路徑建掛載點；不存在的秘密也就沒有東西可遮。
+    # /tmp is already a private tmpfs. Mask $HOME/.claude and the configured
+    # harness even when RETRO2_HOME points somewhere else; missing directories
+    # have nothing to hide, and a read-only root cannot grow a new mount point.
+    covered = {Path("/tmp").resolve()}
     for secret in SECRET_DIRECTORIES:
-        if (home / secret).is_dir():
-            command += ["--tmpfs", str(home / secret)]
+        _cover_with_tmpfs(command, home / secret, covered)
+    _cover_with_tmpfs(command, config.RETRO2_HOME, covered)
     if (home / ".netrc").exists():
         command += ["--ro-bind", "/dev/null", str(home / ".netrc")]
     # A host worktree may point into the configured harness Git directory. Keep that tree
@@ -98,10 +124,15 @@ def run_restricted(argv, writable_root, *, cwd=None, timeout=300, env=None,
             for root in git_roots:
                 command += ["--ro-bind", str(root), str(root)]
         # Claude reads $CLAUDE_CONFIG_DIR/.credentials.json. Mount that file
-        # outside the harness tree: diagnosis passes the harness root to
-        # --add-dir, and --add-dir cannot name CLAUDE.md or settings.json
-        # individually because it accepts directories only.
-        visible = (*roots, writable_root, Path(cwd or writable_root).resolve())
+        # outside every directory the model can read. --add-dir accepts
+        # directories only, so CLAUDE.md and settings.json stay visible by
+        # adding the harness root after that root has been masked.
+        visible = (
+            *roots,
+            writable_root,
+            Path(cwd or writable_root).resolve(),
+            *_added_directories(argv),
+        )
         for credential in credentials:
             if not credential.is_file():
                 continue

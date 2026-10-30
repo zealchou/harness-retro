@@ -15,6 +15,7 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "retro2"))
 station_host = importlib.import_module("station_host")
+host_exits = importlib.import_module("host_exits")
 
 
 def supports_bwrap_namespace():
@@ -79,7 +80,16 @@ else:
     statuses.append("HOOKS_DIR" if (harness / "hooks").is_dir() else "HOOKS_MISSING")
     statuses.append("LOGS_DIR" if (harness / "scripts" / "logs").is_dir() else "LOGS_MISSING")
     statuses.append("HARNESS_CRED_PRESENT" if (harness / ".credentials.json").exists() else "HARNESS_CRED_ABSENT")
-    statuses.append("HIDDEN_PRESENT" if (harness / "projects" / "hidden.txt").exists() else "HIDDEN_ABSENT")
+expect_path = cwd / "scope-expect.json"
+expect = json.loads(expect_path.read_text(encoding="utf-8")) if expect_path.is_file() else {}
+hidden = [Path(item) for item in expect.get("hidden", [])]
+statuses.append("HIDDEN_PRESENT" if any(path.exists() for path in hidden) else "HIDDEN_ABSENT")
+run_file = Path(expect["run_file"]) if expect.get("run_file") else None
+statuses.append("RUN_PRESENT" if run_file is not None and run_file.exists() else "RUN_ABSENT")
+diagnostics = Path(expect["diagnostics"]) if expect.get("diagnostics") else None
+statuses.append(
+    "DIAGNOSTICS_VISIBLE" if diagnostics is not None and (diagnostics / "visible.txt").is_file() else "DIAGNOSTICS_MISSING"
+)
 leaked = False
 if marker:
     for root in (cwd, *dirs):
@@ -177,48 +187,132 @@ class HostSubjectRootTests(unittest.TestCase):
             self.assertIn(str(station_host.HOST_HARNESS), added)
             self.assertFalse(any(path.endswith(".credentials.json") for path in added))
 
-    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
-    def test_diagnosis_read_scope_cannot_reach_claude_credential(self):
-        """The model Read roots include the harness files and exclude the credential.
+    def _outside_tmp(self, prefix):
+        parent = Path("/var/tmp")
+        if not parent.is_dir() or not os.access(parent, os.W_OK):
+            parent = Path.home()
+        return tempfile.TemporaryDirectory(prefix=prefix, dir=parent)
 
-        --add-dir accepts directories only, so CLAUDE.md and settings.json stay
-        readable by adding the harness root. The credential file is mounted for
-        the CLI outside that root. This uses a synthetic marker, never a real login.
-        """
-        with tempfile.TemporaryDirectory() as directory:
+    def _fill_private_tree(self, harness, marker):
+        for relative in (
+            "projects/hidden.txt",
+            "history/note.txt",
+            "todos/note.txt",
+            "memory/note.txt",
+            "retro-2/queue/note.txt",
+        ):
+            path = harness / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(marker, encoding="utf-8")
+        (harness / "hooks").mkdir(parents=True, exist_ok=True)
+        (harness / "scripts" / "logs").mkdir(parents=True, exist_ok=True)
+        (harness / "CLAUDE.md").write_text("rules\n", encoding="utf-8")
+        (harness / "settings.json").write_text("{}\n", encoding="utf-8")
+        (harness / "hooks" / "sample.sh").write_text("echo ok\n", encoding="utf-8")
+        (harness / "scripts" / "logs" / "note.log").write_text("log\n", encoding="utf-8")
+        credential = harness / ".credentials.json"
+        credential.write_text(marker, encoding="utf-8")
+        return credential
+
+    def _assert_read_scope(self, *, home, harness, credential, marker):
+        """Run diagnosis in a sandbox whose harness is not under /tmp."""
+        base = home.parent
+        subject = self._subject(base)
+        diagnostics = base / "diagnostics"
+        diagnostics.mkdir()
+        (diagnostics / "visible.txt").write_text("diag\n", encoding="utf-8")
+        runs = harness / "retro-2" / "runs"
+        checker = subject / "check_read_scope.py"
+        checker.write_text(READ_SCOPE_CHECKER, encoding="utf-8")
+        checker.chmod(0o755)
+        hidden = [
+            harness / "projects" / "hidden.txt",
+            harness / "history" / "note.txt",
+            harness / "todos" / "note.txt",
+            harness / "memory" / "note.txt",
+            harness / "retro-2" / "queue" / "note.txt",
+            home / ".claude" / ".credentials.json",
+        ]
+        ticket = {
+            "schema_version": 1, "idempotency_key": "read-scope-" + harness.name,
+            "controller_entry": "retro2/controller/run.py", "repo_root": str(subject),
+        }
+        runner = station_host.PythonStationRunner(ticket, runs, claude=str(checker))
+        runner.run_dir.mkdir(parents=True)
+        (runner.run_dir / "leak.txt").write_text(marker, encoding="utf-8")
+        hidden.append(runner.run_dir / "leak.txt")
+        (subject / "scope-expect.json").write_text(json.dumps({
+            "hidden": [str(path) for path in hidden],
+            "run_file": str(runner.run_dir / "leak.txt"),
+            "diagnostics": str(diagnostics),
+        }), encoding="utf-8")
+        reads = (
+            harness / "CLAUDE.md", harness / "settings.json", harness / "hooks",
+            harness / "scripts" / "logs", diagnostics,
+        )
+        with mock.patch.dict(os.environ, {"HOME": str(home)}), \
+                mock.patch.object(station_host, "HOST_HARNESS", harness), \
+                mock.patch.object(station_host, "HOST_HARNESS_READS", reads), \
+                mock.patch.object(station_host.config, "RETRO2_HOME", harness), \
+                mock.patch.object(station_host.config, "CLAUDE_CREDENTIAL_FILE", credential), \
+                mock.patch.object(station_host.config, "DIAGNOSTICS_DIR", diagnostics):
+            result = runner._structured("diagnosis", {}, read_only_repo=True)
+        self.assertEqual([
+            "AUTH_READABLE", "AUTH_READONLY", "SCOPE_DENIES_AUTH", "HARNESS_IS_READ_ROOT",
+            "RULES_READABLE", "SETTINGS_READABLE", "HOOKS_DIR", "LOGS_DIR",
+            "HARNESS_CRED_ABSENT", "HIDDEN_ABSENT", "RUN_ABSENT", "DIAGNOSTICS_VISIBLE",
+            "MARKER_CONTAINED",
+        ], result["statuses"])
+        self.assertFalse(str(runner.run_dir).startswith("/tmp/"))
+        self.assertFalse(str(harness).startswith("/tmp/"))
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_diagnosis_read_scope_masks_home_claude_outside_tmp(self):
+        with self._outside_tmp("retro2-home-claude-") as directory:
             root = Path(directory)
-            subject = self._subject(directory)
-            harness = root / "home" / ".claude"
-            (harness / "hooks").mkdir(parents=True)
-            (harness / "scripts" / "logs").mkdir(parents=True)
-            (harness / "projects").mkdir()
-            (harness / "CLAUDE.md").write_text("rules\n", encoding="utf-8")
-            (harness / "settings.json").write_text("{}\n", encoding="utf-8")
-            (harness / "hooks" / "sample.sh").write_text("echo ok\n", encoding="utf-8")
-            (harness / "scripts" / "logs" / "note.log").write_text("log\n", encoding="utf-8")
-            (harness / "projects" / "hidden.txt").write_text("not-allowlisted\n", encoding="utf-8")
+            home = root / "home"
+            harness = home / ".claude"
+            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
+            credential = self._fill_private_tree(harness, marker)
+            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker)
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_diagnosis_read_scope_masks_relocated_retro2_home(self):
+        with self._outside_tmp("retro2-moved-home-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            original = home / ".claude"
+            original.mkdir(parents=True)
+            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
+            (original / ".credentials.json").write_text(marker, encoding="utf-8")
+            harness = root / "moved-harness"
+            credential = self._fill_private_tree(harness, marker)
+            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker)
+
+    @unittest.skipUnless(supports_bwrap_namespace(), "requires a usable bwrap network namespace")
+    def test_diagnosis_read_scope_hides_default_runs_root(self):
+        with self._outside_tmp("retro2-default-runs-") as directory:
+            root = Path(directory)
+            home = root / "home"
+            harness = home / ".claude"
+            marker = "SYNTHETIC-MARKER-" + secrets.token_hex(16)
+            credential = self._fill_private_tree(harness, marker)
+            self._assert_read_scope(home=home, harness=harness, credential=credential, marker=marker)
+
+    def test_credential_mount_uses_add_dir_for_overlap(self):
+        with self._outside_tmp("retro2-overlap-") as directory:
+            root = Path(directory)
+            harness = root / "harness"
+            harness.mkdir()
             credential = harness / ".credentials.json"
-            credential.write_text("SYNTHETIC-MARKER-" + secrets.token_hex(16) + "\n", encoding="utf-8")
-            diagnostics = root / "diagnostics"
-            diagnostics.mkdir()
-            checker = subject / "check_read_scope.py"
-            checker.write_text(READ_SCOPE_CHECKER, encoding="utf-8")
-            checker.chmod(0o755)
-            ticket = {"schema_version": 1, "idempotency_key": "read-scope", "controller_entry": "retro2/controller/run.py", "repo_root": str(subject)}
-            runner = station_host.PythonStationRunner(ticket, root / "runs", claude=str(checker))
-            runner.run_dir.mkdir(parents=True)
-            reads = (harness / "CLAUDE.md", harness / "settings.json", harness / "hooks", harness / "scripts" / "logs", diagnostics)
-            with mock.patch.object(station_host, "HOST_HARNESS", harness), \
-                    mock.patch.object(station_host, "HOST_HARNESS_READS", reads), \
-                    mock.patch.object(station_host.config, "RETRO2_HOME", harness), \
-                    mock.patch.object(station_host.config, "CLAUDE_CREDENTIAL_FILE", credential), \
-                    mock.patch.object(station_host.config, "DIAGNOSTICS_DIR", diagnostics):
-                result = runner._structured("diagnosis", {}, read_only_repo=True)
-            self.assertEqual([
-                "AUTH_READABLE", "AUTH_READONLY", "SCOPE_DENIES_AUTH", "HARNESS_IS_READ_ROOT",
-                "RULES_READABLE", "SETTINGS_READABLE", "HOOKS_DIR", "LOGS_DIR",
-                "HARNESS_CRED_ABSENT", "HIDDEN_ABSENT", "MARKER_CONTAINED",
-            ], result["statuses"])
+            credential.write_text("SYNTHETIC-MARKER\n", encoding="utf-8")
+            writable = root / "work"
+            writable.mkdir()
+            with mock.patch.object(host_exits.config, "RETRO2_HOME", harness):
+                with self.assertRaisesRegex(host_exits.HostExitError, "overlaps"):
+                    host_exits.run_restricted(
+                        ["claude", "--add-dir", "/tmp"], writable, credential_paths=(credential,),
+                    )
 
 
 if __name__ == "__main__":

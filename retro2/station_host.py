@@ -218,6 +218,18 @@ class PythonStationRunner:
             "usage_unknown": self.usage_unknown,
         })
 
+    def _diagnosis_scratch_parent(self):
+        """A writable parent that is not the repo, harness, or diagnostics directory."""
+        blocked = [Path(path).resolve() for path in (self.repo, HOST_HARNESS, config.DIAGNOSTICS_DIR)]
+        for parent in (Path("/var/tmp"), Path("/tmp")):
+            if not parent.is_dir() or not os.access(parent, os.W_OK):
+                continue
+            resolved = parent.resolve()
+            if any(resolved == item or resolved.is_relative_to(item) for item in blocked):
+                continue
+            return parent
+        raise RuntimeError("no diagnosis scratch directory outside the model read scope")
+
     def _structured(self, kind, request, timeout=300, read_only_repo=False, schema=GENERIC_SCHEMA):
         if self.tokens_used >= MAX_ROUND_TOKENS:
             raise TokenBudgetExceeded("round_token_budget_exceeded")
@@ -262,6 +274,7 @@ class PythonStationRunner:
                     "--no-session-persistence", "--output-format", "json",
                     "--json-schema", json.dumps(schema, ensure_ascii=False, separators=(",", ":")),
                     "--system-prompt", TRUSTED_STATION_PROMPT, payload]
+        scratch = None
         try:
             if kind in {"candidate", "diagnosis"} and self._uses_platform_sandbox:
                 worktree = request.get("worktree")
@@ -271,10 +284,19 @@ class PythonStationRunner:
                 # subprocesses never inherit this exception (see _run_tests).
                 credential = config.CODEX_CREDENTIAL_FILE if self.backend_key == "codex" \
                     else config.CLAUDE_CREDENTIAL_FILE
+                # The default run directory lives under the harness, which is an
+                # --add-dir. Diagnosis does not need that directory writable;
+                # give the CLI a scratch directory outside the read scope.
+                writable = worktree or self.run_dir
+                if kind == "diagnosis" and self.backend_key != "codex":
+                    scratch = tempfile.TemporaryDirectory(
+                        prefix="retro2-diagnosis-scratch-", dir=self._diagnosis_scratch_parent(),
+                    )
+                    writable = scratch.name
                 isolated = run_restricted(
-                    argv, worktree or self.run_dir, cwd=worktree or self.repo, timeout=timeout, allow_network=True,
+                    argv, writable, cwd=worktree or self.repo, timeout=timeout, allow_network=True,
                     readonly_roots=(self.repo, *HOST_HARNESS_READS) if kind == "diagnosis" else (),
-                    credential_paths=(credential,))  # relocated outside model read roots; home dir stays masked
+                    credential_paths=(credential,))  # relocated outside model read roots; harness stays masked
                 code, stdout, stderr = isolated.returncode, isolated.stdout, isolated.stderr
             else:
                 code, stdout, stderr = self.command(argv, cwd=self.repo if read_only_repo else None, timeout=timeout)
@@ -282,6 +304,9 @@ class PythonStationRunner:
             if codex_io is not None:
                 shutil.rmtree(codex_io, ignore_errors=True)
             raise
+        finally:
+            if scratch is not None:
+                scratch.cleanup()
         if code:
             if codex_io is not None:
                 shutil.rmtree(codex_io, ignore_errors=True)
