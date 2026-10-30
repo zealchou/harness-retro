@@ -4,9 +4,9 @@
 
 The chairman decides these. Nothing in this design is implemented, and PR #9 does not merge until the broker lands with it.
 
-1. Claude: subscription login or API key?
-2. Codex: ChatGPT login or API key?
-3. Grant veth admin rights, or use a Unix socket instead?
+1. Claude: a subscription login, which has the support and terms risk in U1, or an API key, which is billed per token ([Manage costs effectively](https://code.claude.com/docs/en/costs))?
+2. Codex: a ChatGPT login, which has the support gap in U2, or an API key, which the provider bills per token ([OpenAI pricing](https://platform.openai.com/docs/pricing))?
+3. Grant administrator rights for a veth and for the broker's dedicated account, or use a Unix socket? The socket does not need `CAP_NET_ADMIN`. Creating the dedicated account still needs an administrator. See rollout step 1.
 4. Turn off all of Claude's nonessential background traffic?
 5. Broker as a long-running service, or one per task?
 
@@ -60,9 +60,9 @@ The broker is a different process from the sandbox. The sandboxed CLI must not b
 
 `bwrap --unshare-all` already includes `--unshare-pid` and `--unshare-user-try`. The broker design keeps that:
 
-- **PID namespace.** The sandbox is in its own PID namespace. A process can ptrace only processes in its own PID namespace or a descendant namespace, not processes in the parent namespace. The broker stays in the host PID namespace, so the sandbox cannot ptrace or attach to it. See [ptrace(2)](https://man7.org/linux/man-pages/man2/ptrace.2.html) (PID namespace restriction).
+- **PID namespace.** The sandbox is in its own PID namespace. A process can see, and so can target with `kill` or `ptrace`, only processes in its own PID namespace and in descendants of that namespace. The broker stays in the host PID namespace, which is an ancestor, so the sandbox cannot see it, attach to it, or open its `/proc/<pid>/mem` or `environ`. See [pid_namespaces(7)](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html).
 - **Private `/proc`.** The sandbox gets bubblewrap's `--proc` mount, a procfs for that PID namespace. `/proc/<broker-pid>/mem` and `/proc/<broker-pid>/environ` are not there, because the broker's pid is not a pid in that namespace. Guessing the host pid number does not make those files appear.
-- **User namespace and uid.** The sandbox's user namespace means its root is not host root. The broker runs as a different host uid from the sandboxed process. Even if a future bug shared a PID namespace, that uid split plus the kernel Yama `ptrace_scope` (a process may ptrace only its descendants when the scope is 1) would still deny `ptrace` and `/proc/<pid>/mem`. The token stays in the broker's address space.
+- **Different uid.** The broker runs as its own host account, not as the user inside the sandbox. Opening another user's `/proc/<pid>/mem` or `environ` requires `PTRACE_MODE_ATTACH` ([proc_pid_mem(5)](https://man7.org/linux/man-pages/man5/proc_pid_mem.5.html)). A different uid fails that check. This does not depend on Yama `ptrace_scope`, which is not present on the target host. The token stays in the broker's address space. An administrator creates that account once, before the broker is started. See rollout step 1.
 - **No shared credentials in memory maps.** The sandbox does not receive the broker's file descriptors. The ticket in the child environment is the random pass, not the OAuth token or API key.
 
 ## Pointing the CLIs at the broker
@@ -149,7 +149,7 @@ A veth pair is one concrete path, because both CLIs speak HTTP to a base URL:
 
 Creating that veth in the host network namespace requires `CAP_NET_ADMIN` in the initial user namespace. In practice that is root, or a helper with file capability `CAP_NET_ADMIN`. Bubblewrap's `--unshare-user` gives the sandbox `CAP_NET_ADMIN` only inside its own empty network namespace. That is enough to bring up loopback in the sandbox. It is not enough to insert one end of a veth into the host namespace. Whether a non-root user on our machines can do the host half is untested. See U3. Chairman decision 3 chooses veth or the socket below.
 
-A Unix socket needs no `CAP_NET_ADMIN`. The broker listens on a socket file. Bubblewrap bind-mounts that one socket into the sandbox and no other host socket. The CLIs' documented base URL is TCP, so a small forwarder inside the sandbox listens on sandbox loopback and forwards bytes to the mounted socket. The forwarder does not hold a credential. The sandbox still has `--unshare-net`, so loopback in the sandbox is not the host's loopback, and there is still no route to the public internet. Do not build both the veth and the socket forwarder. The chairman picks one.
+A Unix socket needs no `CAP_NET_ADMIN`. The broker listens on one socket file. Bubblewrap bind-mounts that file and no other host socket. The sandbox can open only the socket that was mounted. `--unshare-net` also puts abstract Unix sockets, which have no filesystem path, in the sandbox's own network namespace, so they are not the host's abstract sockets ([network_namespaces(7)](https://man7.org/linux/man-pages/man7/network_namespaces.7.html)). The CLIs' documented base URL is TCP, so a small forwarder inside the sandbox listens on sandbox loopback and forwards bytes to the mounted socket. The forwarder does not hold a credential. Loopback in the sandbox is not the host's loopback, and there is still no route to the public internet. Do not build both the veth and the socket forwarder. The chairman picks one. The dedicated broker account is still required either way.
 
 `/tmp` is unchanged: a private tmpfs, with no credential file on it.
 
@@ -157,15 +157,15 @@ A Unix socket needs no `CAP_NET_ADMIN`. The broker listens on a socket file. Bub
 
 Seccomp is syscall-level hardening only. It does not enforce which host the sandbox may contact. That is the network namespace and the veth or Unix-socket layout above.
 
-Bubblewrap can load a filter. From [bwrap(1)](https://manpages.ubuntu.com/manpages/resolute/man1/bwrap.1.html), `--add-seccomp-fd FD` reads a compiled classic BPF program, as produced by `seccomp_export_bpf`, from that file descriptor. The option can be repeated. Filters are installed in the order given, and the kernel evaluates them in reverse order, so the last program on the command line runs first. Every filter except possibly the last must allow `prctl(PR_SET_SECCOMP)`. `--add-seccomp-fd` cannot be combined with `--seccomp`. The host installs the filter with `PR_SET_NO_NEW_PRIVS` already set, which bubblewrap does for an unprivileged sandbox. See [seccomp(2)](https://man7.org/linux/man-pages/man2/seccomp.2.html).
+Bubblewrap loads the filter. From [bwrap(1)](https://manpages.ubuntu.com/manpages/resolute/man1/bwrap.1.html), `--add-seccomp-fd FD` reads a compiled classic BPF program, as produced by `seccomp_export_bpf`, from that file descriptor. The option can be repeated. Filters are installed in the order given, and the kernel evaluates them in reverse order, so the last program on the command line runs first. Every filter except possibly the last must allow `prctl(PR_SET_SECCOMP)`. `--add-seccomp-fd` cannot be combined with `--seccomp`. Bubblewrap itself always calls `prctl(PR_SET_NO_NEW_PRIVS, 1)` before the sandboxed command runs, for every sandbox, not only an unprivileged one ([bubblewrap README](https://github.com/containers/bubblewrap/blob/main/README.md)). That is what lets the filter be installed. See [seccomp(2)](https://man7.org/linux/man-pages/man2/seccomp.2.html).
 
-The filter we would load is small:
+The filter we would load is small, and it does not look at addresses or paths:
 
-- Deny `ptrace` so the sandbox cannot attach to anything, including a process that later shared a namespace by mistake.
-- Deny `AF_UNIX` `socket` creation except the one broker socket, when the Unix-socket layout is chosen. On the veth layout, deny `AF_UNIX` `socket` outright so the child cannot open `SSH_AUTH_SOCK` or another host socket.
-- Do not try to allow `connect` only for `10.88.0.1:8080`. The filter cannot see that address.
+- Deny `ptrace`, so the sandbox cannot attach to a process even if a later bug shared a PID namespace.
+- Do not allow or deny one Unix socket by path. `socket` takes a domain, a type, and a protocol, all integers. The path arrives later as a pointer argument to `connect` or `bind`, and a BPF filter cannot dereference that pointer ([Seccomp BPF](https://docs.kernel.org/userspace-api/seccomp_filter.html)). On the Unix-socket layout, seccomp therefore does not try to recognize the broker socket. The mount list bind-mounts only that one socket file, and `--unshare-net` isolates abstract sockets. Together those two decide which socket the sandbox can reach.
+- Do not allow `connect` only for `10.88.0.1:8080`. The filter cannot see that address either. The veth and `--unshare-net` decide which IP is reachable.
 
-This is not a full syscall allow-list. File access stays the job of the mount list. Cutting off the public internet stays the job of `--unshare-net` plus the veth or socket.
+This is not a full syscall allow-list. File access stays the job of the mount list. Cutting off the public internet, and reaching only the broker socket, stay the job of `--unshare-net` plus the veth or the single bind-mounted socket.
 
 ## Turning Codex back on
 
@@ -208,22 +208,23 @@ The logged-in Read run at `f942d1b2` stays the record of the current mount behav
 
 PR #9 does not merge by itself. The broker implementation is the next change on this line of work, and the two merge together.
 
-1. Add the broker and the chairman's chosen network path (veth or Unix socket) behind the existing allow-list. Delete the credential `--ro-bind` in the same change. Load the seccomp program with `--add-seccomp-fd`.
-2. Run the Claude real-CLI plan above on a logged-in machine.
-3. Re-enable Codex only after its real-CLI plan passes and the chairman has chosen the Codex account type.
-4. Update `docs/sandbox-allowlist.md`, both READMEs, and `docs/safety-model.md` so they no longer say the login file is mounted.
-5. Merge that change with PR #9. Do not merge earlier.
+1. An administrator, the person who can create a system account, creates the broker's dedicated user before the first broker process starts. That is a one-time host setup step. It is the same kind of administrator right as creating a veth, and chairman decision 3 covers both. The sandbox does not create this account.
+2. Add the broker, running as that user, and the chairman's chosen network path (veth or Unix socket) behind the existing allow-list. Delete the credential `--ro-bind` in the same change. Bubblewrap loads the seccomp program with `--add-seccomp-fd`. The filter does not select a socket path or an IP address.
+3. Run the Claude real-CLI plan above on a logged-in machine.
+4. Re-enable Codex only after its real-CLI plan passes and the chairman has chosen the Codex account type.
+5. Update `docs/sandbox-allowlist.md`, both READMEs, and `docs/safety-model.md` so they no longer say the login file is mounted.
+6. Merge that change with PR #9. Do not merge earlier.
 
 ## Open questions
 
-1. Which Claude login should the broker hold: the subscription OAuth file, an `ANTHROPIC_API_KEY`, or both? **Chairman decides** (account and policy). The API key is the documented path. The subscription file is U1.
-2. Which Codex login should it hold: ChatGPT OAuth in `auth.json`, or an API key? **Chairman decides** (account and policy). The API key matches `env_key`. The ChatGPT login is U2.
-3. Is a veth pair acceptable on the machines that run harness-retro, or is a Unix socket required? **Chairman decides** (policy). Creating a veth needs `CAP_NET_ADMIN` on the host. A Unix socket does not. Whether a non-root user can create the veth here is U3. Engineering reports that result. The chairman chooses.
+1. Which Claude login should the broker hold: the subscription OAuth file, an `ANTHROPIC_API_KEY`, or both? **Chairman decides** (account and policy). The subscription file has no official broker support and the terms limit in U1. An API key is the documented gateway credential and is billed per token ([Manage costs effectively](https://code.claude.com/docs/en/costs)).
+2. Which Codex login should it hold: ChatGPT OAuth in `auth.json`, or an API key? **Chairman decides** (account and policy). The ChatGPT login has no official broker support (U2). An API key matches `env_key` and is billed per token ([OpenAI pricing](https://platform.openai.com/docs/pricing)).
+3. Grant administrator rights for a veth and for the broker's dedicated account, or use a Unix socket? **Chairman decides** (policy). Creating a veth needs `CAP_NET_ADMIN` on the host. A Unix socket does not. Creating the dedicated account still needs an administrator either way, before the broker starts (rollout step 1). Whether a non-root user can create the veth here is U3. Engineering reports that result. The chairman chooses.
 4. Claude Code calls more than the model API. Which of those calls, if any, must succeed for diagnosis to be usable? **Chairman decides** (policy). The official switch is `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` ([environment variables](https://code.claude.com/docs/en/env-vars)). Setting it disables auto-updates, telemetry, error reporting, feedback, release notes, status checks, and feature-flag fetching.
 5. Should one broker process serve every run, or should each run start a short-lived broker? **Chairman decides** (policy). Either way the ticket is revoked when the stage exits, and the broker stays outside the sandbox PID namespace.
 
 ## Unverified / policy risk
 
-- **U1.** Having the broker hold a Claude subscription login (`~/.claude/.credentials.json`) has no official support. Anthropic's terms restrict transferring Claude.ai credentials. The supported route is an API key with `ANTHROPIC_BASE_URL`, documented in [Connect Claude Code to an LLM gateway](https://code.claude.com/docs/en/llm-gateway-connect).
+- **U1.** Having the broker hold a Claude subscription login (`~/.claude/.credentials.json`) has no official support. [Legal and compliance](https://code.claude.com/docs/en/legal-and-compliance) says: "developers may not collect, store, or intermediate Claude.ai credentials or session tokens." The supported route is an API key with `ANTHROPIC_BASE_URL`, documented in [Connect Claude Code to an LLM gateway](https://code.claude.com/docs/en/llm-gateway-connect). An API key is billed per token.
 - **U2.** Having the broker hold Codex's ChatGPT login has no official support and no support in the provider source cited above. That source tells Codex to take an API key from `env_key` when `requires_openai_auth` is false. `chatgpt.com/backend-api/codex` is the host the broker would have to call for a ChatGPT login. It is not a documented extension point for a third-party broker.
 - **U3.** Whether a non-root user can create the veth is untested. The capability required is `CAP_NET_ADMIN` in the initial user namespace. A user namespace alone does not grant that on the host network namespace.
